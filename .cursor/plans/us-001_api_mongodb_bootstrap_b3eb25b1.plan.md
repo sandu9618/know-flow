@@ -4,22 +4,22 @@ overview: Wire the Node API to MongoDB with connection pooling, graceful shutdow
 todos:
   - id: add-mongodb-dep
     content: Add `mongodb` driver to apps/api and create `src/clients/mongodb.client.ts` with connect/ping/close
-    status: pending
+    status: completed
   - id: config-validation
     content: Extend config.ts to validate MONGODB_URI and export pool/timeout options
-    status: pending
+    status: completed
   - id: health-layers
     content: Add health.service.ts + async health.controller.ts returning 200/503 with { data } envelope
-    status: pending
+    status: completed
   - id: error-middleware
     content: Add AppError, asyncHandler, and errorHandler middleware per shared conventions
-    status: pending
+    status: completed
   - id: bootstrap-lifecycle
     content: "Update index.ts: connect before listen, register errorHandler, graceful SIGINT/SIGTERM shutdown"
-    status: pending
+    status: completed
   - id: docs-verify
     content: Update README health example and US-001 AC; run manual verification matrix
-    status: pending
+    status: completed
 isProject: false
 ---
 

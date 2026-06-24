@@ -13,3 +13,50 @@ body {
   margin: 0;
   min-height: 100vh;
 }
+
+.coming-soon {
+  max-width: 40rem;
+}
+
+.coming-soon-badge {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4a5568;
+  background: #e8ecf4;
+  border-radius: 999px;
+}
+
+.coming-soon h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.coming-soon-description {
+  margin: 0;
+  color: #5c6370;
+  font-size: 1.05rem;
+}
+
+.not-found h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.75rem;
+}
+
+.not-found p {
+  margin: 0 0 1rem;
+  color: #5c6370;
+}
+
+.not-found a {
+  color: #3b5bdb;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.not-found a:hover {
+  text-decoration: underline;
+}

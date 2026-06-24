@@ -37,7 +37,7 @@ As a **developer**, I want to **connect the Node API to MongoDB with a health en
 
 ## Acceptance Criteria
 
-- [ ] `GET /health` returns 200 with `{ status: "ok", db: "connected" }`
+- [ ] `GET /health` returns 200 with `{ data: { status: "ok", db: "connected" } }`
 - [ ] API fails gracefully with clear error when MongoDB is down
 - [ ] No LLM or AI integration required yet
 

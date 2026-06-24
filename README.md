@@ -27,7 +27,7 @@ Implementation follows the 12-week roadmap in [ROADMAP.md](./ROADMAP.md). Each w
 
 ## Status
 
-Week 0 bootstrap complete — monorepo scaffolding, Docker services, and minimal dev servers are in place. Week 1 begins with the prompt template library.
+Week 0 bootstrap complete — monorepo scaffolding, Docker services, API MongoDB connection, and minimal dev servers are in place. Week 1 begins with the prompt template library.
 
 ## Local Development
 
@@ -68,8 +68,8 @@ npm run dev
 | Service | URL | Expected |
 |---------|-----|----------|
 | MongoDB | `docker compose ps` | `mongodb` container healthy |
-| Node API | http://localhost:3000/health | `{ "data": { "status": "ok" } }` |
-| React web | http://localhost:5173 | Bootstrap page loads |
+| Node API | http://localhost:3000/health | `{ "data": { "status": "ok", "db": "connected" } }` |
+| React web | http://localhost:5173 | App shell with sidebar navigation; feature placeholders show "Coming in Week N" |
 | Python worker | http://localhost:8000/health | `{ "data": { "status": "ok" } }` |
 
 ```bash
@@ -101,3 +101,13 @@ npm run dev:worker
 ```
 
 Stop Docker services: `npm run docker:down`
+
+### Troubleshooting
+
+If the API exits on startup with a MongoDB connection error:
+
+1. Confirm MongoDB is running: `docker compose ps` (container should be `healthy`)
+2. Start MongoDB if needed: `npm run docker:up`
+3. Confirm `MONGODB_URI` in `.env` matches your setup (default: `mongodb://localhost:27017/knowflow`)
+
+If MongoDB stops while the API is running, `GET /health` returns **503** with `{ "data": { "status": "degraded", "db": "disconnected" } }`.
