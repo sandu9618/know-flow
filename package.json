@@ -1,0 +1,19 @@
+{
+  "name": "knowflow",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web,worker -c blue,green,yellow \"npm run dev -w @knowflow/api\" \"npm run dev -w @knowflow/web\" \"npm run dev:worker\"",
+    "dev:api": "npm run dev -w @knowflow/api",
+    "dev:web": "npm run dev -w @knowflow/web",
+    "dev:worker": "cd services/python-worker && (test -d .venv || python3 -m venv .venv) && .venv/bin/pip install -q -r requirements.txt && .venv/bin/uvicorn app.main:app --reload --port 8000",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

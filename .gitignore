@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Python
+services/python-worker/.venv/
+services/python-worker/__pycache__/
+services/python-worker/**/__pycache__/
+services/python-worker/*.egg-info/
+services/python-worker/.pytest_cache/
+services/python-worker/.mypy_cache/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test coverage
+coverage/

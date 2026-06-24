@@ -1,0 +1,68 @@
+---
+description: KnowFlow Node.js API standards — runtime, layers, responses, security, and code quality for apps/api
+globs: apps/api/**/*
+alwaysApply: false
+---
+
+# KnowFlow Node.js API (`apps/api`)
+
+## Environment and runtime
+
+- **Node.js 24+** (LTS). Use TypeScript with strict mode enabled.
+- **Framework**: Express (default) or Fastify — pick one per app and stay consistent.
+- **Config**: load secrets and service URLs from environment variables via a single `config` module — never hardcode API keys, bucket credentials, or connection strings.
+- **`.env`**: use `.env.example` for required keys (e.g. `GEMINI_API_KEY`, `MONGODB_URI`, `BUCKET_*`, `REDIS_URL`); never commit `.env`.
+- **Ports**: API on `3000` locally; align with `docker-compose` and ARCHITECTURE.md.
+- **Process model**: heavy work (parse, embed, ingest) goes through **queues** — API returns `202` with `jobId`, not blocking requests.
+
+## Layer interconnectivity
+
+Canonical layer rules, request flow, validation, middleware order, response envelopes, errors, and boundaries: **`.cursor/skills/nodejs-api-shared/conventions.md`**
+
+```typescript
+// routes/documents.routes.ts — wire only
+router.post('/', validate(uploadSchema), upload.single('file'), documentsController.create);
+
+// controllers/documents.controller.ts — thin adapter
+const result = await documentService.uploadAndEnqueue({ userId: req.user.id, file: req.file });
+res.status(202).json({ data: result });
+
+// services/documents.service.ts — orchestration
+const storageKey = await bucketClient.upload(input.file);
+const doc = await documentRepository.create({ storageKey, userId: input.userId });
+await ingestionQueue.add('ingest', { documentId: doc.id });
+
+// repositories/documents.repository.ts — persistence only
+return DocumentModel.findById(id).select('title status').lean().exec();
+```
+
+Cross-layer code examples: **`.cursor/skills/nodejs-api-shared/examples.md`**
+
+## Code quality, maintainability, and style
+
+- **Layout**: `src/routes`, `controllers`, `services`, `repositories`, `clients`, `middleware`, `errors`, `types`.
+- **Naming**: `{resource}.routes.ts`, `{resource}.controller.ts`, `{resource}.service.ts`, `{resource}.repository.ts`; handlers use verb + resource (`getDocument`, `searchDocuments`).
+- **Functions**: async handlers with typed inputs; prefer `asyncHandler` or Express 5 native async to avoid duplicate try/catch.
+- **Types**: no `any` for validated bodies; domain types in `types/`, separate from HTTP DTOs.
+- **Logging**: structured logger in middleware — not `console.log` in handlers.
+- **Size**: keep controllers thin (~15 lines); split services/repos over ~300 lines by subdomain.
+- **Imports**: no circular service imports — extract shared logic or inject dependencies.
+- **Memory** (ARCHITECTURE.md): top-k vector retrieval only; batch embeddings; never load full corpus or all bucket objects in memory.
+
+## Dependency and security management
+
+- **Dependencies**: pin major versions; run `npm audit` before releases; prefer well-maintained packages with active maintenance.
+- **Secrets**: server-side only; frontend gets presigned URLs, never bucket credentials.
+- **Input**: validate and sanitize user content before prompt assembly; separate system prompts from user input.
+- **Uploads**: enforce file size and MIME type in middleware; rate-limit `/upload` and `/chat`.
+- **Auth**: implement in middleware; controllers read `req.user` only.
+- **Errors**: map infrastructure failures to domain codes in services; log server errors with context, not secrets.
+- **Updates**: review changelogs for breaking changes on framework and driver upgrades (Express, Mongoose, BullMQ).
+
+## Layer skills
+
+- Shared conventions: `.cursor/skills/nodejs-api-shared/`
+- Routes: `.cursor/skills/nodejs-routes-layer/`
+- Controllers: `.cursor/skills/nodejs-controller-layer/`
+- Services: `.cursor/skills/nodejs-service-layer/`
+- Repositories: `.cursor/skills/nodejs-repository-layer/`

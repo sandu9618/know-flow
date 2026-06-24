@@ -1,0 +1,119 @@
+---
+description: KnowFlow React web standards — components, hooks, and state for apps/web
+globs: apps/web/**/*
+alwaysApply: false
+---
+
+# KnowFlow React Web (`apps/web`)
+
+## Environment and runtime
+
+- **React 19+** with **TypeScript strict** and **Vite** dev server on port `5173`.
+- **API base URL** from `import.meta.env.VITE_API_URL` — never hardcode `localhost` in components.
+- **No secrets in the browser** — bucket credentials stay server-side; use presigned URLs from the API.
+- Align response shapes with the API envelope: `{ data }` / `{ error: { code, message } }`.
+
+## Component design
+
+- **Functional components only** — no class components.
+- **One component per file**; filename matches the default export (`ChatMessage.tsx` → `ChatMessage`).
+- **Layout**: `src/components/` (shared UI), `src/features/{feature}/` (route-level screens + feature hooks), `src/routes/`, `src/hooks/`, `src/lib/` (api client, utils).
+- **Composition over configuration** — prefer children and small props over boolean prop sprawl (`isLoading`, `isError`, `showHeader`, …).
+- **Presentational vs container**: dumb UI in `components/`; data fetching and side effects in feature hooks or route loaders — not buried in leaf widgets.
+- **Props**: explicit typed interfaces; avoid `any`. Destructure props in the signature.
+- **Exports**: default export for the component; named exports for types and colocated hooks.
+- **Accessibility**: semantic HTML, labels on inputs, keyboard-focusable controls; chat/search must work without a mouse.
+
+```tsx
+// ❌ BAD — fetch + render + styles in one 200-line component
+export function ChatPage() {
+  const [messages, setMessages] = useState([]);
+  useEffect(() => { fetch('/api/chat')... }, []);
+  return <div>...</div>;
+}
+
+// ✅ GOOD — feature hook + thin page
+export function ChatPage() {
+  const { messages, sendMessage, isStreaming } = useChat();
+  return <ChatLayout messages={messages} onSend={sendMessage} isStreaming={isStreaming} />;
+}
+```
+
+## Hooks and React rules (strict)
+
+Enable `eslint-plugin-react-hooks` with **`react-hooks/rules-of-hooks`: error** and **`react-hooks/exhaustive-deps`: warn**.
+
+| Rule | Requirement |
+|------|-------------|
+| **Rules of Hooks** | Call hooks only at the top level of function components or custom hooks — never in loops, conditions, callbacks, or `try/catch`. |
+| **Custom hooks** | Prefix with `use`; one concern per hook (`useChat`, `useDocumentUpload`). |
+| **`useEffect`** | Prefer event handlers, TanStack Query, or derived state over effects. Every effect needs a cleanup when subscribing (SSE, `AbortController`, timers). |
+| **Dependencies** | Include every reactive value used inside the effect/callback; do not disable `exhaustive-deps` without a comment explaining why. |
+| **`useMemo` / `useCallback`** | Use only when profiling or stabilizing deps for memoized children — not by default on every handler. |
+| **Keys** | Stable, unique `key` on lists — never array index for dynamic/reorderable lists (chat messages, search results). |
+| **Refs** | `useRef` for DOM and mutable instance values; do not read/write `ref.current` during render. |
+| **State updates** | Functional updaters when next state depends on previous (`setMessages(prev => [...prev, chunk])`). |
+| **No side effects in render** | Fetching, subscriptions, and `localStorage` writes belong in effects or event handlers. |
+
+```tsx
+// ❌ BAD — conditional hook
+if (isOpen) {
+  const [value, setValue] = useState('');
+}
+
+// ❌ BAD — missing cleanup on stream
+useEffect(() => {
+  const es = new EventSource(url);
+  es.onmessage = (e) => setChunk(e.data);
+}, [url]);
+
+// ✅ GOOD
+useEffect(() => {
+  const controller = new AbortController();
+  void streamChat(url, { signal: controller.signal, onChunk: appendChunk });
+  return () => controller.abort();
+}, [url, appendChunk]);
+```
+
+## State management
+
+Split state by **source of truth** — do not duplicate server data in global client stores.
+
+| State type | Tool | Examples |
+|------------|------|----------|
+| **Server / async** | **TanStack Query** | Documents list, search results, conversation history, dashboards |
+| **URL / navigation** | **React Router** | Active tab, document id, search query params |
+| **Local UI** | **`useState` / `useReducer`** | Form fields, modal open, upload progress, draft message |
+| **Cross-tree UI** | **React Context** (sparingly) | Theme, sidebar collapse, toast provider |
+| **Streaming buffers** | **Feature hook + `useReducer`** | Incremental chat tokens before persistence |
+
+- **Do not** put fetched API entities in Zustand/Context — cache with TanStack Query (`queryKey` per resource).
+- **Mutations** (`useMutation`) invalidate related queries on success; optimistic updates only when rollback is straightforward.
+- **Forms**: controlled inputs; validate before submit; map API `{ error }` to field-level messages.
+- **Loading / error / empty**: every data view handles all three explicitly — no blank screens.
+- **Streaming chat**: append chunks in the hook reducer; on stream end, invalidate the conversation query so persisted history replaces the buffer.
+
+```tsx
+// Server state — TanStack Query
+const { data: documents, isLoading, error } = useQuery({
+  queryKey: ['documents'],
+  queryFn: () => api.getDocuments(),
+});
+
+// Local UI only
+const [draft, setDraft] = useState('');
+
+// ❌ BAD — mirroring server list in useState after fetch
+const [docs, setDocs] = useState<Document[]>([]);
+useEffect(() => { fetch(...).then(setDocs); }, []);
+```
+
+## Code quality
+
+- **Imports**: absolute paths via `@/` alias; group React → libraries → local.
+- **Types**: shared API types in `src/types/` or `packages/` when reused with the API.
+- **Size**: split components over ~150 lines; extract subcomponents and hooks.
+- **Styling**: one approach per app (e.g. CSS modules or Tailwind) — stay consistent within `apps/web`.
+- **Testing**: prefer Testing Library for behavior; mock API at the fetch/client layer, not implementation details of hooks.
+
+For API contracts and envelopes, see `.cursor/rules/nodejs-api.mdc` and `ARCHITECTURE.md`.

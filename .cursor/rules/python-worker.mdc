@@ -1,0 +1,119 @@
+---
+description: KnowFlow Python worker standards — FastAPI runtime, layers, ingestion memory rules, and HTTP contracts for services/python-worker
+globs: services/python-worker/**/*
+alwaysApply: false
+---
+
+# KnowFlow Python Worker (`services/python-worker`)
+
+## Environment and runtime
+
+- **Python 3.11+**. Use type hints everywhere; enable strict checking via `pyright` or `mypy` in CI.
+- **Framework**: FastAPI with **Uvicorn** — default port `8000` locally; align with `docker-compose` and ARCHITECTURE.md.
+- **Config**: load secrets and service URLs from environment via a single `config` module (`pydantic-settings`) — never hardcode API keys, bucket credentials, or connection strings.
+- **`.env`**: document required keys in `.env.example` (e.g. `GEMINI_API_KEY`, `MONGODB_URI`); never commit `.env`.
+- **Invocation**: HTTP from the **Node ingestion worker or API client only** — not from the React app. Treat as an internal service.
+- **Persistence**: Python may upsert `chunks` with embeddings during ingestion; Node owns `knowledge_sources` status and job orchestration.
+
+## Layer interconnectivity
+
+Request flow is one direction only:
+
+```
+Router → Handler → Service → Parser / Embedder / Repository / Client
+                              ↓
+                    Exception handler → JSON response
+```
+
+| Layer | Owns | Must not |
+|-------|------|----------|
+| **Routers** | Path registration, dependency injection, handler binding | Parsing logic, embedding API calls, MongoDB queries |
+| **Handlers** | Read request body, call one service, map to HTTP status + JSON | Business rules, direct SDK/DB access |
+| **Services** | Chunking rules, batch orchestration, domain `AppError` for expected failures | FastAPI `Request`/`Response` details |
+| **Parsers** | PDF/DOCX text extraction (streaming, page-by-page) | HTTP concerns, embedding |
+| **Clients** | Embedding API config, retries, timeouts (Gemini) | Domain orchestration |
+| **Repositories** | MongoDB upserts/queries for chunks | Business rules, HTTP envelopes |
+
+```python
+# routers/embed.py — wire only
+@router.post("/embed")
+async def embed_text(body: EmbedRequest, handler: EmbedHandler = Depends()):
+    return await handler.embed(body)
+
+# handlers/embed.py — thin adapter
+async def embed(self, body: EmbedRequest) -> EmbedResponse:
+    vectors = await self.embed_service.embed_batch(body.texts)
+    return EmbedResponse(data=vectors)
+
+# services/embed.py — orchestration + batching
+async def embed_batch(self, texts: list[str]) -> list[list[float]]:
+    if not 1 <= len(texts) <= 50:
+        raise AppError("BATCH_SIZE_INVALID", "Batch must be 1–50 texts")
+    return await self.embedding_client.embed(texts)
+```
+
+Validate with **Pydantic models** on the router/handler boundary; services assume valid domain input. Services raise `AppError`; a single **exception handler** maps errors to the response envelope.
+
+## HTTP contracts
+
+Use a JSON envelope aligned with the Node API:
+
+```python
+# Success
+{ "data": T }
+{ "data": list[T], "meta": { "count": int } }
+
+# Client error
+{ "error": { "code": str, "message": str, "details": dict | None } }
+```
+
+| Endpoint | Purpose | Notes |
+|----------|---------|-------|
+| `GET /health` | Liveness/readiness | No auth in local dev; gate in production if exposed |
+| `POST /embed` | Single or batch embeddings | Accept `{ "text": str }` or `{ "texts": list[str] }`; batch **10–50** texts |
+| `POST /parse` or `POST /chunk` | Extract + chunk text for ingestion | Stream or page-batch input; return chunks with `text`, `tokenCount`, `index` |
+| LangChain RAG (Week 8) | Parallel comparison path | Same task as Node RAG; isolated module under `langchain/` |
+
+| Outcome | Status |
+|---------|--------|
+| OK | `200` |
+| Accepted (async, if used) | `202` |
+| Validation | `422` (FastAPI default) or `400` with `{ error }` |
+| Not found | `404` |
+| Server error | `500` (handler only; never leak stack traces in production) |
+
+Never return raw prompts, secrets, or internal exception strings to callers.
+
+## Ingestion and memory (ARCHITECTURE.md)
+
+Python owns the **CPU-heavy, memory-sensitive** steps. Enforce these in services and parsers:
+
+1. **One source at a time** — never load multiple full documents or connector payloads in one request.
+2. **Stream or temp-file** — do not buffer entire large files in RAM; use generators/async iterators where possible.
+3. **Page-by-page PDF parsing** — cap memory on huge documents.
+4. **Chunk size** — target **500–1000 tokens** per chunk; persist metadata (`tokenCount`, `index`, `sourceId`).
+5. **Batch embeddings** — **10–50 chunks** per embedding API call, not the full corpus.
+6. **Persist then release** — write chunks to MongoDB, clear in-memory batch state before the next batch.
+7. **Retries** — transient embedding API failures: retry with backoff in the **client** layer; surface permanent failures as `AppError` for Node to mark source `failed`.
+
+### Anti-patterns
+
+| Anti-pattern | Why it fails |
+|--------------|--------------|
+| Load full PDF into a single string | OOM on large files |
+| Embed all chunks in one API call | Token limits, cost, timeouts |
+| Hold entire chunk list in memory until job ends | Unbounded RAM per source |
+| Read bucket directly from Python | Couples worker to storage; Node adapter should stream normalized text |
+
+## Code quality, maintainability, and style
+
+- **Layout**: `app/routers`, `handlers`, `services`, `parsers`, `clients`, `repositories`, `errors`, `schemas`, `config.py`.
+- **Naming**: `{resource}.py` per layer; handlers use verb + resource (`embed_text`, `parse_document`).
+- **Async**: prefer `async def` for I/O (HTTP, MongoDB, embedding API); keep CPU-bound parsing in thread pool if it blocks the event loop.
+- **Logging**: structured logging (`structlog` or `logging` JSON) — not bare `print` in handlers.
+- **Dependencies**: pin versions in `requirements.txt` or `pyproject.toml`; run `pip audit` / `uv pip compile` before releases.
+- **Size**: keep handlers thin (~15 lines); split services/modules over ~300 lines by subdomain (embed, parse, langchain).
+- **Imports**: no circular service imports — extract shared logic or inject via FastAPI `Depends`.
+- **Tests**: unit-test services and parsers with fixtures; integration-test `/embed` and `/health` against mocked clients.
+
+For system boundaries, ingestion flow, and collection shapes, see `ARCHITECTURE.md` and `.cursor/rules/nodejs-api.mdc`.
