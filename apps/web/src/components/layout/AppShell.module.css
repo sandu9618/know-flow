@@ -52,15 +52,29 @@
 }
 
 .menuButton {
-  display: none;
-  padding: 0.4rem 0.65rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
   border: 1px solid #d0d7e2;
   border-radius: 6px;
   background: #fff;
   color: #1a1a2e;
-  font-size: 1.1rem;
-  line-height: 1;
   cursor: pointer;
+}
+
+.menuIcon {
+  display: block;
+  width: 1.125rem;
+  height: 2px;
+  background: currentColor;
+  border-radius: 1px;
+  box-shadow:
+    0 -5px 0 currentColor,
+    0 5px 0 currentColor;
 }
 
 .menuButton:hover {
@@ -74,6 +88,17 @@
   border-right: 1px solid #e2e6ef;
   padding: 1rem 0.75rem;
   overflow-y: auto;
+  transition:
+    width 0.2s ease,
+    padding 0.2s ease,
+    border-width 0.2s ease;
+}
+
+.sidebarClosed {
+  width: 0;
+  padding: 0;
+  overflow: hidden;
+  border-right-width: 0;
 }
 
 .sidebarNav {
@@ -107,21 +132,25 @@
 }
 
 @media (max-width: 768px) {
-  .menuButton {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
   .sidebar {
     position: fixed;
     top: 0;
     left: 0;
     bottom: 0;
     z-index: 50;
+    width: 240px;
+    padding: 1rem 0.75rem;
+    border-right-width: 1px;
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     box-shadow: 4px 0 24px rgb(0 0 0 / 8%);
+  }
+
+  .sidebarClosed {
+    width: 240px;
+    padding: 1rem 0.75rem;
+    border-right-width: 1px;
+    transform: translateX(-100%);
   }
 
   .sidebarOpen {

@@ -18,7 +18,7 @@ export default function AppHeader({ onMenuToggle, isSidebarOpen }: AppHeaderProp
         aria-label="Toggle navigation menu"
         aria-expanded={isSidebarOpen}
       >
-        ☰
+        <span className={styles.menuIcon} aria-hidden="true" />
       </button>
       <h1 className={styles.brand}>KnowFlow</h1>
     </header>

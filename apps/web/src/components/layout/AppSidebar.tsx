@@ -10,8 +10,9 @@ export interface AppSidebarProps {
 export default function AppSidebar({ isOpen, onNavigate }: AppSidebarProps) {
   return (
     <aside
-      className={`${styles.sidebar} ${isOpen ? styles.sidebarOpen : ''}`}
+      className={`${styles.sidebar} ${isOpen ? styles.sidebarOpen : styles.sidebarClosed}`}
       aria-label="Main navigation"
+      aria-hidden={!isOpen}
     >
       <nav className={styles.sidebarNav}>
         {navItems.map((item) => (
