@@ -6,6 +6,7 @@ loadEnv({ path: resolve(process.cwd(), '.env') });
 
 export const config = {
   port: Number(process.env.PORT ?? 3000),
+  corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
   mongodbUri: process.env.MONGODB_URI ?? 'mongodb://localhost:27017/knowflow',
   mongodb: {
     maxPoolSize: 10,

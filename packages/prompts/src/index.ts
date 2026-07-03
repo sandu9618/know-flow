@@ -1,4 +1,9 @@
-/** Placeholder — Week 1 prompt templates will be added here. */
-export type PromptTemplateStub = Record<string, never>;
+export {
+  PROMPT_PATTERN_VALUES,
+  PROMPT_PATTERNS,
+  isValidPattern,
+  type PromptPattern,
+  type PromptPatternDefinition,
+} from './patterns.js';
 
-export const promptTemplates: PromptTemplateStub = {};
+export { extractVariables, substituteVariables } from './variables.js';

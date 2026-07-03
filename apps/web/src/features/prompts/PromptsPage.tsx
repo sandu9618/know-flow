@@ -1,14 +1,16 @@
-import ComingSoonPage from '@/components/ui/ComingSoonPage';
+import CreatePromptTemplateForm from '@/features/prompts/CreatePromptTemplateForm';
 import { getNavItemByPath } from '@/routes/navConfig';
+import styles from '@/features/prompts/PromptsPage.module.css';
 
 const navItem = getNavItemByPath('/prompts')!;
 
 export default function PromptsPage() {
   return (
-    <ComingSoonPage
-      title={navItem.label}
-      weekLabel={navItem.weekLabel}
-      description={navItem.description}
-    />
+    <article className={styles.page}>
+      <p className={styles.pageBadge}>{navItem.weekLabel}</p>
+      <h1>{navItem.label}</h1>
+      <p className={styles.pageDescription}>{navItem.description}</p>
+      <CreatePromptTemplateForm />
+    </article>
   );
 }

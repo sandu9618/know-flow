@@ -1,22 +1,28 @@
 import express from 'express';
+import cors from 'cors';
 import type { Server } from 'node:http';
 import { closeMongo, connectMongo, getMongoHostForLogging } from './clients/mongodb.client.js';
 import { config, validateStartupConfig } from './config.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { promptTemplatesRepository } from './repositories/prompt-templates.repository.js';
 import { healthRouter } from './routes/health.routes.js';
+import { promptTemplatesRouter } from './routes/prompt-templates.routes.js';
 
 validateStartupConfig();
 
 const app = express();
 
+app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 app.use('/health', healthRouter);
+app.use('/api/prompt-templates', promptTemplatesRouter);
 app.use(errorHandler);
 
 async function startServer(): Promise<Server> {
   try {
     await connectMongo();
     console.log(`MongoDB connected (${getMongoHostForLogging()})`);
+    await promptTemplatesRepository.ensureIndexes();
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(

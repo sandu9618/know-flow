@@ -14,7 +14,7 @@ export const navItems: NavItem[] = [
     week: 1,
     weekLabel: 'Week 1',
     description: 'Select a pattern, fill variables, and preview the final prompt.',
-    implemented: false,
+    implemented: true,
   },
   {
     label: 'Documents',

@@ -1,0 +1,127 @@
+.page {
+  max-width: 42rem;
+}
+
+.pageBadge {
+  display: inline-block;
+  margin: 0 0 0.75rem;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #4a5568;
+  background: #e8ecf4;
+  border-radius: 999px;
+}
+
+.page h1 {
+  margin: 0 0 0.75rem;
+  font-size: 1.75rem;
+  letter-spacing: -0.02em;
+}
+
+.pageDescription {
+  margin: 0 0 1.5rem;
+  color: #5c6370;
+  font-size: 1.05rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  font: inherit;
+  color: inherit;
+  background: #fff;
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 10rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: 2px solid #93b4f6;
+  outline-offset: 1px;
+  border-color: #3b5bdb;
+}
+
+.field input:disabled,
+.field select:disabled,
+.field textarea:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #5c6370;
+}
+
+.actions {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.actions button {
+  padding: 0.6rem 1.1rem;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: #3b5bdb;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.actions button:hover:not(:disabled) {
+  background: #2f4ac0;
+}
+
+.actions button:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.error {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  color: #9b1c1c;
+  background: #fde8e8;
+  border: 1px solid #f5c2c2;
+  border-radius: 6px;
+}
+
+.success {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  color: #0f5132;
+  background: #d1e7dd;
+  border: 1px solid #a3cfbb;
+  border-radius: 6px;
+}
