@@ -1,5 +1,5 @@
 import type { PromptPattern } from '@knowflow/prompts';
-import type { WithId } from 'mongodb';
+import { ObjectId, type WithId } from 'mongodb';
 import { getDb } from '../clients/mongodb.client.js';
 import type { CreatePromptTemplateInput, PromptTemplate } from '../types/prompt-template.types.js';
 
@@ -58,5 +58,32 @@ export const promptTemplatesRepository = {
     const result = await getDb().collection<PromptTemplateDoc>(COLLECTION).insertOne(doc);
 
     return toDomain({ _id: result.insertedId, ...doc });
+  },
+
+  async updateById(
+    id: string,
+    fields: { name: string; pattern: PromptPattern; template: string; variables: string[] },
+  ): Promise<PromptTemplate | null> {
+    const result = await getDb()
+      .collection<PromptTemplateDoc>(COLLECTION)
+      .findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            name: fields.name,
+            pattern: fields.pattern,
+            template: fields.template,
+            variables: fields.variables,
+            updatedAt: new Date(),
+          },
+        },
+        { returnDocument: 'after' },
+      );
+
+    if (!result) {
+      return null;
+    }
+
+    return toDomain(result);
   },
 };

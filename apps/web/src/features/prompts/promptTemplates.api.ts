@@ -3,6 +3,7 @@ import { fetchJson } from '@/lib/api';
 import type {
   CreatePromptTemplateRequest,
   PromptTemplate,
+  UpdatePromptTemplateRequest,
 } from '@/types/prompt-template.types';
 
 export async function listPromptTemplates(
@@ -23,5 +24,20 @@ export async function createPromptTemplate(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
   });
+  return response.data;
+}
+
+export async function updatePromptTemplate(
+  id: string,
+  input: UpdatePromptTemplateRequest,
+): Promise<PromptTemplate> {
+  const response = await fetchJson<{ data: PromptTemplate }>(
+    `/api/prompt-templates/${encodeURIComponent(id)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  );
   return response.data;
 }

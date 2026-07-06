@@ -11,21 +11,42 @@ const nameSchema = z
     'Name must start with a letter or number and contain only letters, numbers, hyphens, and underscores',
   );
 
+const promptTemplateBodySchema = z.object({
+  name: nameSchema,
+  pattern: z.enum(PROMPT_PATTERN_VALUES),
+  template: z
+    .string()
+    .trim()
+    .min(1, 'Template is required')
+    .max(10_000, 'Template must be at most 10,000 characters'),
+});
+
+const objectIdParamSchema = z
+  .string()
+  .regex(/^[0-9a-fA-F]{24}$/, 'Invalid template id');
+
 export const createPromptTemplateSchema = z.object({
-  body: z.object({
-    name: nameSchema,
-    pattern: z.enum(PROMPT_PATTERN_VALUES),
-    template: z
-      .string()
-      .trim()
-      .min(1, 'Template is required')
-      .max(10_000, 'Template must be at most 10,000 characters'),
-  }),
+  body: promptTemplateBodySchema,
 });
 
 export type CreatePromptTemplateBody = z.infer<
   typeof createPromptTemplateSchema
 >['body'];
+
+export const updatePromptTemplateSchema = z.object({
+  params: z.object({
+    id: objectIdParamSchema,
+  }),
+  body: promptTemplateBodySchema,
+});
+
+export type UpdatePromptTemplateBody = z.infer<
+  typeof updatePromptTemplateSchema
+>['body'];
+
+export type UpdatePromptTemplateParams = z.infer<
+  typeof updatePromptTemplateSchema
+>['params'];
 
 export const listPromptTemplatesSchema = z.object({
   query: z.object({

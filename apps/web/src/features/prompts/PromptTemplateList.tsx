@@ -36,7 +36,11 @@ function groupTemplatesByPattern(
   })).filter((section) => section.templates.length > 0);
 }
 
-export default function PromptTemplateList() {
+interface PromptTemplateListProps {
+  onEdit: (template: PromptTemplate) => void;
+}
+
+export default function PromptTemplateList({ onEdit }: PromptTemplateListProps) {
   const { data: templates = [], isLoading, error } = usePromptTemplates();
   const [patternFilter, setPatternFilter] = useState<PatternFilter>(ALL_PATTERNS);
 
@@ -115,6 +119,13 @@ export default function PromptTemplateList() {
                       <span className={styles.variableCount}>
                         {formatVariableCount(template.variables.length)}
                       </span>
+                      <button
+                        type="button"
+                        className={styles.editButton}
+                        onClick={() => onEdit(template)}
+                      >
+                        Edit
+                      </button>
                     </li>
                   );
                 })}

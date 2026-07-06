@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate.js';
 import {
   createPromptTemplateSchema,
   listPromptTemplatesSchema,
+  updatePromptTemplateSchema,
 } from '../schemas/prompt-templates.schema.js';
 
 export const promptTemplatesRouter = Router();
@@ -19,4 +20,10 @@ promptTemplatesRouter.post(
   '/',
   validate(createPromptTemplateSchema),
   asyncHandler(promptTemplatesController.createPromptTemplate),
+);
+
+promptTemplatesRouter.put(
+  '/:id',
+  validate(updatePromptTemplateSchema),
+  asyncHandler(promptTemplatesController.updatePromptTemplate),
 );

@@ -15,3 +15,9 @@ export type CreatePromptTemplateRequest = {
   pattern: PromptPattern;
   template: string;
 };
+
+export type UpdatePromptTemplateRequest = {
+  name: string;
+  pattern: PromptPattern;
+  template: string;
+};

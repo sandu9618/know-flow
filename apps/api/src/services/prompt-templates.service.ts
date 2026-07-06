@@ -37,4 +37,39 @@ export const promptTemplatesService = {
       throw error;
     }
   },
+
+  async update(id: string, input: CreatePromptTemplateInput): Promise<PromptTemplate> {
+    if (!isValidPattern(input.pattern)) {
+      throw new AppError('VALIDATION_ERROR', 'Invalid prompt pattern', 400);
+    }
+
+    const variables = extractVariables(input.template);
+
+    try {
+      const updated = await promptTemplatesRepository.updateById(id, {
+        ...input,
+        variables,
+      });
+
+      if (!updated) {
+        throw new AppError('TEMPLATE_NOT_FOUND', 'Prompt template not found', 404);
+      }
+
+      return updated;
+    } catch (error: unknown) {
+      if (error instanceof AppError) {
+        throw error;
+      }
+
+      if (isDuplicateKeyError(error)) {
+        throw new AppError(
+          'DUPLICATE_TEMPLATE_NAME',
+          `A prompt template named "${input.name}" already exists`,
+          409,
+        );
+      }
+
+      throw error;
+    }
+  },
 };
