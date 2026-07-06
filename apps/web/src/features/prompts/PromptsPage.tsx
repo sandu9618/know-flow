@@ -17,7 +17,14 @@ export default function PromptsPage() {
       <p className={styles.pageBadge}>{navItem.weekLabel}</p>
       <h1>{navItem.label}</h1>
       <p className={styles.pageDescription}>{navItem.description}</p>
-      <PromptTemplateList onEdit={setEditingTemplate} />
+      <PromptTemplateList
+        onEdit={setEditingTemplate}
+        onDeleted={(deletedId) => {
+          if (editingTemplate?.id === deletedId) {
+            setEditingTemplate(null);
+          }
+        }}
+      />
       {editingTemplate ? (
         <PromptTemplateForm
           key={editingTemplate.id}

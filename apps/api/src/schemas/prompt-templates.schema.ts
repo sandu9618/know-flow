@@ -55,3 +55,13 @@ export const listPromptTemplatesSchema = z.object({
 });
 
 export type ListPromptTemplatesQuery = z.infer<typeof listPromptTemplatesSchema>['query'];
+
+export const deletePromptTemplateSchema = z.object({
+  params: z.object({
+    id: objectIdParamSchema,
+  }),
+});
+
+export type DeletePromptTemplateParams = z.infer<
+  typeof deletePromptTemplateSchema
+>['params'];

@@ -1,5 +1,5 @@
 import type { PromptPattern } from '@knowflow/prompts';
-import { fetchJson } from '@/lib/api';
+import { ApiError, fetchJson, getApiBaseUrl } from '@/lib/api';
 import type {
   CreatePromptTemplateRequest,
   PromptTemplate,
@@ -40,4 +40,28 @@ export async function updatePromptTemplate(
     },
   );
   return response.data;
+}
+
+export async function deletePromptTemplate(id: string): Promise<void> {
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}/api/prompt-templates/${encodeURIComponent(id)}`;
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  const body = (await response.json()) as {
+    error?: { code?: string; message?: string };
+  };
+
+  throw new ApiError(
+    body.error?.message ?? `Request failed with status ${response.status}`,
+    response.status,
+    body.error?.code,
+  );
 }

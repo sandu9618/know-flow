@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { validate } from '../middleware/validate.js';
 import {
   createPromptTemplateSchema,
+  deletePromptTemplateSchema,
   listPromptTemplatesSchema,
   updatePromptTemplateSchema,
 } from '../schemas/prompt-templates.schema.js';
@@ -26,4 +27,10 @@ promptTemplatesRouter.put(
   '/:id',
   validate(updatePromptTemplateSchema),
   asyncHandler(promptTemplatesController.updatePromptTemplate),
+);
+
+promptTemplatesRouter.delete(
+  '/:id',
+  validate(deletePromptTemplateSchema),
+  asyncHandler(promptTemplatesController.deletePromptTemplate),
 );

@@ -86,4 +86,12 @@ export const promptTemplatesRepository = {
 
     return toDomain(result);
   },
+
+  async deleteById(id: string): Promise<boolean> {
+    const result = await getDb()
+      .collection<PromptTemplateDoc>(COLLECTION)
+      .deleteOne({ _id: new ObjectId(id) });
+
+    return result.deletedCount === 1;
+  },
 };

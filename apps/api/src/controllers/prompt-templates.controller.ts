@@ -1,6 +1,7 @@
 import type { Request, Response } from 'express';
 import type {
   CreatePromptTemplateBody,
+  DeletePromptTemplateParams,
   ListPromptTemplatesQuery,
   UpdatePromptTemplateBody,
   UpdatePromptTemplateParams,
@@ -31,5 +32,11 @@ export const promptTemplatesController = {
     const body = req.body as UpdatePromptTemplateBody;
     const template = await promptTemplatesService.update(id, body);
     res.status(200).json({ data: template });
+  },
+
+  async deletePromptTemplate(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as DeletePromptTemplateParams;
+    await promptTemplatesService.delete(id);
+    res.sendStatus(204);
   },
 };

@@ -136,7 +136,6 @@
 }
 
 .editButton {
-  margin-left: auto;
   padding: 0.35rem 0.75rem;
   font: inherit;
   font-size: 0.875rem;
@@ -148,7 +147,41 @@
   cursor: pointer;
 }
 
-.editButton:hover {
+.itemActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+.deleteButton {
+  padding: 0.35rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #9b1c1c;
+  background: #fff;
+  border: 1px solid #f5c2c2;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.deleteButton:hover:not(:disabled) {
+  background: #fde8e8;
+}
+
+.deleteButton:focus {
+  outline: 2px solid #f5c2c2;
+  outline-offset: 1px;
+}
+
+.deleteButton:disabled,
+.editButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.editButton:hover:not(:disabled) {
   background: #f4f6fb;
 }
 

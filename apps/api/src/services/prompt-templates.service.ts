@@ -72,4 +72,12 @@ export const promptTemplatesService = {
       throw error;
     }
   },
+
+  async delete(id: string): Promise<void> {
+    const deleted = await promptTemplatesRepository.deleteById(id);
+
+    if (!deleted) {
+      throw new AppError('TEMPLATE_NOT_FOUND', 'Prompt template not found', 404);
+    }
+  },
 };
