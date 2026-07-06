@@ -1,3 +1,4 @@
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import {
   extractVariables,
@@ -6,7 +7,7 @@ import {
 } from '@knowflow/prompts';
 import { ApiError } from '@/lib/api';
 import { createPromptTemplate } from '@/features/prompts/promptTemplates.api';
-import type { PromptTemplate } from '@/types/prompt-template.types';
+import { promptTemplatesQueryKey } from '@/features/prompts/usePromptTemplates';
 import styles from '@/features/prompts/PromptsPage.module.css';
 
 const DEFAULT_PATTERN = PROMPT_PATTERNS[0].id;
@@ -16,12 +17,26 @@ function getPatternDefinition(pattern: PromptPattern) {
 }
 
 export default function CreatePromptTemplateForm() {
+  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [pattern, setPattern] = useState<PromptPattern>(DEFAULT_PATTERN);
   const [template, setTemplate] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [createdTemplate, setCreatedTemplate] = useState<PromptTemplate | null>(null);
+
+  const {
+    mutate,
+    data: createdTemplate,
+    error,
+    isPending,
+    reset,
+  } = useMutation({
+    mutationFn: createPromptTemplate,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: promptTemplatesQueryKey });
+      setName('');
+      setPattern(DEFAULT_PATTERN);
+      setTemplate('');
+    },
+  });
 
   const selectedPattern = getPatternDefinition(pattern);
   const detectedVariables = template.trim() ? extractVariables(template) : [];
@@ -36,31 +51,14 @@ export default function CreatePromptTemplateForm() {
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
-    setCreatedTemplate(null);
-    setIsSubmitting(true);
-
-    try {
-      const saved = await createPromptTemplate({
-        name: name.trim(),
-        pattern,
-        template: template.trim(),
-      });
-      setCreatedTemplate(saved);
-      setName('');
-      setPattern(DEFAULT_PATTERN);
-      setTemplate('');
-    } catch (submitError) {
-      if (submitError instanceof ApiError) {
-        setError(submitError.message);
-      } else {
-        setError('Something went wrong while saving the template.');
-      }
-    } finally {
-      setIsSubmitting(false);
-    }
+    reset();
+    mutate({
+      name: name.trim(),
+      pattern,
+      template: template.trim(),
+    });
   }
 
   return (
@@ -76,7 +74,9 @@ export default function CreatePromptTemplateForm() {
 
       {error && (
         <p className={styles.error} role="alert">
-          {error}
+          {error instanceof ApiError
+            ? error.message
+            : 'Something went wrong while saving the template.'}
         </p>
       )}
 
@@ -91,7 +91,7 @@ export default function CreatePromptTemplateForm() {
           placeholder="summarize-policy"
           autoComplete="off"
           required
-          disabled={isSubmitting}
+          disabled={isPending}
         />
         <p className={styles.hint}>
           Letters, numbers, hyphens, and underscores (e.g. summarize-policy).
@@ -105,7 +105,7 @@ export default function CreatePromptTemplateForm() {
           name="pattern"
           value={pattern}
           onChange={(event) => handlePatternChange(event.target.value as PromptPattern)}
-          disabled={isSubmitting}
+          disabled={isPending}
         >
           {PROMPT_PATTERNS.map((item) => (
             <option key={item.id} value={item.id}>
@@ -126,7 +126,7 @@ export default function CreatePromptTemplateForm() {
           rows={10}
           placeholder="{{variable}} placeholders are extracted when you save."
           required
-          disabled={isSubmitting}
+          disabled={isPending}
         />
         {detectedVariables.length > 0 && (
           <p className={styles.hint}>
@@ -136,8 +136,8 @@ export default function CreatePromptTemplateForm() {
       </div>
 
       <div className={styles.actions}>
-        <button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving…' : 'Save template'}
+        <button type="submit" disabled={isPending}>
+          {isPending ? 'Saving…' : 'Save template'}
         </button>
       </div>
     </form>

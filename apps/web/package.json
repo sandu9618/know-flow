@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@knowflow/prompts": "*",
+    "@tanstack/react-query": "^5.101.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.18.0"

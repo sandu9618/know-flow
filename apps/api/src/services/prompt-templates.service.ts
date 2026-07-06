@@ -9,6 +9,10 @@ function isDuplicateKeyError(error: unknown): boolean {
 }
 
 export const promptTemplatesService = {
+  async list(filter: { pattern?: CreatePromptTemplateInput['pattern'] } = {}): Promise<PromptTemplate[]> {
+    return promptTemplatesRepository.findAll(filter);
+  },
+
   async create(input: CreatePromptTemplateInput): Promise<PromptTemplate> {
     if (!isValidPattern(input.pattern)) {
       throw new AppError('VALIDATION_ERROR', 'Invalid prompt pattern', 400);

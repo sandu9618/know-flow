@@ -27,6 +27,17 @@ function toDomain(doc: WithId<PromptTemplateDoc>): PromptTemplate {
 }
 
 export const promptTemplatesRepository = {
+  async findAll(filter: { pattern?: PromptPattern } = {}): Promise<PromptTemplate[]> {
+    const query = filter.pattern ? { pattern: filter.pattern } : {};
+    const docs = await getDb()
+      .collection<PromptTemplateDoc>(COLLECTION)
+      .find(query)
+      .sort({ name: 1 })
+      .toArray();
+
+    return docs.map(toDomain);
+  },
+
   async ensureIndexes(): Promise<void> {
     await getDb()
       .collection<PromptTemplateDoc>(COLLECTION)

@@ -26,3 +26,11 @@ export const createPromptTemplateSchema = z.object({
 export type CreatePromptTemplateBody = z.infer<
   typeof createPromptTemplateSchema
 >['body'];
+
+export const listPromptTemplatesSchema = z.object({
+  query: z.object({
+    pattern: z.enum(PROMPT_PATTERN_VALUES).optional(),
+  }),
+});
+
+export type ListPromptTemplatesQuery = z.infer<typeof listPromptTemplatesSchema>['query'];
