@@ -25,3 +25,10 @@ export function substituteVariables(
     (_, name: string) => values[name] ?? `{{${name}}}`,
   );
 }
+
+export function getUnfilledVariables(
+  variableNames: string[],
+  values: Record<string, string>,
+): string[] {
+  return variableNames.filter((name) => !values[name]?.trim());
+}

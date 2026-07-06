@@ -135,6 +135,7 @@
   color: #5c6370;
 }
 
+.previewButton,
 .editButton {
   padding: 0.35rem 0.75rem;
   font: inherit;
@@ -176,15 +177,18 @@
 }
 
 .deleteButton:disabled,
+.previewButton:disabled,
 .editButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
+.previewButton:hover:not(:disabled),
 .editButton:hover:not(:disabled) {
   background: #f4f6fb;
 }
 
+.previewButton:focus,
 .editButton:focus {
   outline: 2px solid #93b4f6;
   outline-offset: 1px;

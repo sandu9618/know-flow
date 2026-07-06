@@ -6,4 +6,8 @@ export {
   type PromptPatternDefinition,
 } from './patterns.js';
 
-export { extractVariables, substituteVariables } from './variables.js';
+export {
+  extractVariables,
+  getUnfilledVariables,
+  substituteVariables,
+} from './variables.js';

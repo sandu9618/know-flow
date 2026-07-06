@@ -43,11 +43,13 @@ function groupTemplatesByPattern(
 
 interface PromptTemplateListProps {
   onEdit: (template: PromptTemplate) => void;
+  onPreview: (template: PromptTemplate) => void;
   onDeleted?: (deletedId: string) => void;
 }
 
 export default function PromptTemplateList({
   onEdit,
+  onPreview,
   onDeleted,
 }: PromptTemplateListProps) {
   const queryClient = useQueryClient();
@@ -172,6 +174,14 @@ export default function PromptTemplateList({
                         {formatVariableCount(template.variables.length)}
                       </span>
                       <div className={styles.itemActions}>
+                        <button
+                          type="button"
+                          className={styles.previewButton}
+                          onClick={() => onPreview(template)}
+                          disabled={isDeletingThisTemplate}
+                        >
+                          Preview
+                        </button>
                         <button
                           type="button"
                           className={styles.editButton}
