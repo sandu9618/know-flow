@@ -1,8 +1,17 @@
 import { config as loadEnv } from 'dotenv';
 import { resolve } from 'node:path';
+import type { BucketProvider } from './clients/bucket/types.js';
 
 loadEnv({ path: resolve(process.cwd(), '../../.env') });
 loadEnv({ path: resolve(process.cwd(), '.env') });
+
+function parseBucketProvider(value: string | undefined): BucketProvider {
+  if (value === 's3' || value === 'local') {
+    return value;
+  }
+
+  return 'local';
+}
 
 export const config = {
   port: Number(process.env.PORT ?? 3000),
@@ -16,6 +25,16 @@ export const config = {
   llmApiKey: process.env.LLM_API_KEY ?? '',
   pythonWorkerUrl: process.env.PYTHON_WORKER_URL ?? 'http://localhost:8000',
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  bucket: {
+    provider: parseBucketProvider(process.env.BUCKET_PROVIDER),
+    localPath:
+      process.env.BUCKET_LOCAL_PATH ?? resolve(process.cwd(), '../../.local/bucket'),
+    region: process.env.BUCKET_REGION ?? 'us-east-1',
+    name: process.env.BUCKET_NAME ?? 'knowflow-uploads',
+    accessKey: process.env.BUCKET_ACCESS_KEY ?? '',
+    secretKey: process.env.BUCKET_SECRET_KEY ?? '',
+    endpoint: process.env.BUCKET_ENDPOINT ?? '',
+  },
 } as const;
 
 export function validateStartupConfig(): void {

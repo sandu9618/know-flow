@@ -1,14 +1,18 @@
-import ComingSoonPage from '@/components/ui/ComingSoonPage';
+import DocumentList from '@/features/documents/DocumentList';
+import DocumentUpload from '@/features/documents/DocumentUpload';
 import { getNavItemByPath } from '@/routes/navConfig';
+import styles from '@/features/documents/DocumentsPage.module.css';
 
 const navItem = getNavItemByPath('/documents')!;
 
 export default function DocumentsPage() {
   return (
-    <ComingSoonPage
-      title={navItem.label}
-      weekLabel={navItem.weekLabel}
-      description={navItem.description}
-    />
+    <article className={styles.page}>
+      <p className={styles.pageBadge}>{navItem.weekLabel}</p>
+      <h1>{navItem.label}</h1>
+      <p className={styles.pageDescription}>{navItem.description}</p>
+      <DocumentUpload />
+      <DocumentList />
+    </article>
   );
 }

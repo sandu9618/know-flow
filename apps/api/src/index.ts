@@ -4,9 +4,12 @@ import type { Server } from 'node:http';
 import { closeMongo, connectMongo, getMongoHostForLogging } from './clients/mongodb.client.js';
 import { config, validateStartupConfig } from './config.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { knowledgeSourcesRepository } from './repositories/knowledge-sources.repository.js';
 import { promptTemplatesRepository } from './repositories/prompt-templates.repository.js';
+import { documentsRouter } from './routes/documents.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { promptTemplatesRouter } from './routes/prompt-templates.routes.js';
+import { startIngestionWorker, stopIngestionWorker } from './workers/ingestion.worker.js';
 
 validateStartupConfig();
 
@@ -16,6 +19,7 @@ app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json());
 app.use('/health', healthRouter);
 app.use('/api/prompt-templates', promptTemplatesRouter);
+app.use('/api/documents', documentsRouter);
 app.use(errorHandler);
 
 async function startServer(): Promise<Server> {
@@ -23,6 +27,9 @@ async function startServer(): Promise<Server> {
     await connectMongo();
     console.log(`MongoDB connected (${getMongoHostForLogging()})`);
     await promptTemplatesRepository.ensureIndexes();
+    await knowledgeSourcesRepository.ensureIndexes();
+    startIngestionWorker();
+    console.log('Ingestion worker started');
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     console.error(
@@ -45,6 +52,7 @@ function shutdown(server: Server, signal: string): void {
 
   server.close(async () => {
     try {
+      await stopIngestionWorker();
       await closeMongo();
       console.log('MongoDB connection closed');
       process.exit(0);

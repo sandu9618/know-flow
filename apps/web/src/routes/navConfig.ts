@@ -21,8 +21,8 @@ export const navItems: NavItem[] = [
     path: '/documents',
     week: 2,
     weekLabel: 'Week 2',
-    description: 'Upload PDF, DOCX, and TXT files as knowledge sources.',
-    implemented: false,
+    description: 'Upload PDF and TXT files as knowledge sources.',
+    implemented: true,
   },
   {
     label: 'Chat',
