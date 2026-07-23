@@ -1,0 +1,72 @@
+---
+description: Conventions for generating commit messages. Apply whenever asked to write, suggest, or generate a commit message for staged/changed code.
+globs: []
+alwaysApply: false
+---
+
+# Commit Message Generation
+
+## Format: Conventional Commits
+
+```
+<type>(<scope>): <short summary>
+
+<body — optional, wrap at ~72 chars>
+
+<footer — optional>
+```
+
+- **type**: one of `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `chore`,
+  `build`, `ci`, `security`. Pick the one that matches the *primary* intent of
+  the diff — if a change is 90% a refactor with a small unrelated fix folded
+  in, flag that the fix should probably be a separate commit rather than
+  picking a type that half-fits.
+- **scope**: the module/layer touched, in this codebase's terms — e.g.
+  `repositories`, `grading`, `auth`, `api/admin`, `middleware`. Omit scope
+  only if the change is genuinely cross-cutting (e.g. a lockfile bump).
+- **short summary**: imperative mood, no trailing period, ≤ 72 chars —
+  "add tenant filter to submission lookup", not "added" or "adds".
+- **body**: explain *why*, not a restatement of the diff — the diff already
+  shows what changed. Include body only when the "why" isn't obvious from the
+  summary alone (e.g. a bug fix should note the failure mode it addresses).
+- **footer**: `BREAKING CHANGE: ...` for breaking changes, or
+  `Fixes #123` / `Refs #123` for issue links — only when applicable.
+
+## Security- and tenant-relevant changes
+
+If the diff touches tenant-scoping, auth, RBAC, or session logic, say so
+explicitly in type/scope even if the change is small — use `fix(security):`
+or `fix(auth):` rather than a generic `fix:`, and briefly name the
+vulnerability class being closed in the body (e.g. "adds missing tenantId
+filter to prevent cross-tenant read"). This makes security-relevant commits
+greppable in history later.
+
+## Rules for generating the message
+
+1. Read the actual diff (staged changes) before writing the message — never
+   guess from the branch name or the conversation alone.
+2. If the diff spans multiple unrelated concerns, say so and propose splitting
+   into multiple commits rather than writing one summary that papers over
+   both.
+3. Don't editorialize or add filler ("this commit improves code quality") —
+   state the concrete change and, if needed, the concrete reason.
+4. No emoji, no AI-attribution footers, unless the project's existing commit
+   history shows a consistent convention that includes them — match the
+   existing log's style if one is established.
+5. If tests were added/updated as part of the diff, that's usually not worth
+   its own line unless the tests are the main point of the commit (e.g. a
+   `test:` commit) — otherwise it's implied by `feat`/`fix` including its
+   coverage.
+
+## Examples
+
+```
+feat(grading): add auto-grading for true_false questions
+
+fix(repositories): add tenantId filter to submission findById
+
+Fixes a cross-tenant read where a resolved submission ID from any
+tenant could be fetched regardless of session tenant context.
+
+refactor(auth): centralize role checks into rbac.ts predicates
+```
