@@ -6,6 +6,7 @@ import { config, validateStartupConfig } from './config.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { knowledgeSourcesRepository } from './repositories/knowledge-sources.repository.js';
 import { promptTemplatesRepository } from './repositories/prompt-templates.repository.js';
+import { chatRouter } from './routes/chat.routes.js';
 import { documentsRouter } from './routes/documents.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { promptTemplatesRouter } from './routes/prompt-templates.routes.js';
@@ -20,6 +21,7 @@ app.use(express.json());
 app.use('/health', healthRouter);
 app.use('/api/prompt-templates', promptTemplatesRouter);
 app.use('/api/documents', documentsRouter);
+app.use('/api/chat', chatRouter);
 app.use(errorHandler);
 
 async function startServer(): Promise<Server> {

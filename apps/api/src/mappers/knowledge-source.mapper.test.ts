@@ -16,6 +16,7 @@ const sampleSource: KnowledgeSource = {
   },
   errorMessage: null,
   chunkCount: null,
+  extractedText: 'Secret full document text',
   createdAt: new Date('2026-07-23T10:14:12.001Z'),
   acquiredAt: new Date('2026-07-23T10:14:12.001Z'),
   indexedAt: null,
@@ -42,5 +43,6 @@ describe('toKnowledgeSourceListItem', () => {
       indexedAt: null,
     });
     expect('bucketKey' in listItem.sourceConfig).toBe(false);
+    expect('extractedText' in listItem).toBe(false);
   });
 });

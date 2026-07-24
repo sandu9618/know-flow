@@ -21,7 +21,10 @@ export type FileUploadSourceConfig = {
 
 export type FileUploadSourceConfigListItem = Omit<FileUploadSourceConfig, 'bucketKey'>;
 
-export type KnowledgeSourceListItem = Omit<KnowledgeSource, 'sourceConfig'> & {
+export type KnowledgeSourceListItem = Omit<
+  KnowledgeSource,
+  'sourceConfig' | 'extractedText'
+> & {
   sourceConfig: FileUploadSourceConfigListItem | Record<string, unknown>;
 };
 
@@ -33,6 +36,7 @@ export type KnowledgeSource = {
   sourceConfig: FileUploadSourceConfig;
   errorMessage: string | null;
   chunkCount: number | null;
+  extractedText: string | null;
   createdAt: Date;
   acquiredAt: Date | null;
   indexedAt: Date | null;

@@ -6,6 +6,7 @@ export type UploadObjectInput = {
 
 export type BucketClient = {
   uploadObject(input: UploadObjectInput): Promise<void>;
+  downloadObject(key: string): Promise<Buffer>;
   deleteObject(key: string): Promise<void>;
 };
 

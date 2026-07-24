@@ -5,7 +5,9 @@ import {
   INGESTION_QUEUE_NAME,
 } from '../constants/documents.constants.js';
 import type { IngestSourceJobPayload } from '../clients/ingestion-queue.client.js';
+import { bucketClient } from '../clients/bucket.client.js';
 import { knowledgeSourcesRepository } from '../repositories/knowledge-sources.repository.js';
+import { extractTextFromBuffer } from '../services/ingestion/extract-text.js';
 
 let ingestionWorker: Worker<IngestSourceJobPayload> | null = null;
 
@@ -30,10 +32,25 @@ export function startIngestionWorker(): Worker<IngestSourceJobPayload> {
       }
 
       console.log(
-        `[ingestion] received ingest-source job for "${source.title}" (${sourceId})`,
+        `[ingestion] extracting text for "${source.title}" (${sourceId})`,
       );
 
-      // Week 3 (US-033) will stream from bucket, chunk, and update status here.
+      await knowledgeSourcesRepository.updateStatus(sourceId, 'indexing');
+
+      try {
+        const body = await bucketClient.downloadObject(source.sourceConfig.bucketKey);
+        const extractedText = await extractTextFromBuffer(
+          body,
+          source.sourceConfig.mimeType,
+        );
+        await knowledgeSourcesRepository.markIndexedWithText(sourceId, extractedText);
+        console.log(`[ingestion] indexed "${source.title}" (${sourceId})`);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        await knowledgeSourcesRepository.updateStatus(sourceId, 'failed', message);
+        console.error(`[ingestion] failed for ${sourceId}: ${message}`);
+        throw error;
+      }
     },
     {
       connection: { url: config.redisUrl },

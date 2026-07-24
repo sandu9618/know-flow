@@ -17,6 +17,7 @@ type KnowledgeSourceDoc = {
   sourceConfig: FileUploadSourceConfig;
   errorMessage: string | null;
   chunkCount: number | null;
+  extractedText: string | null;
   createdAt: Date;
   acquiredAt: Date | null;
   indexedAt: Date | null;
@@ -31,6 +32,7 @@ function toDomain(doc: WithId<KnowledgeSourceDoc>): KnowledgeSource {
     sourceConfig: doc.sourceConfig,
     errorMessage: doc.errorMessage,
     chunkCount: doc.chunkCount,
+    extractedText: doc.extractedText ?? null,
     createdAt: doc.createdAt,
     acquiredAt: doc.acquiredAt,
     indexedAt: doc.indexedAt,
@@ -49,6 +51,10 @@ export const knowledgeSourcesRepository = {
   },
 
   async findById(id: string): Promise<KnowledgeSource | null> {
+    if (!ObjectId.isValid(id)) {
+      return null;
+    }
+
     const doc = await getDb()
       .collection<KnowledgeSourceDoc>(COLLECTION)
       .findOne({ _id: new ObjectId(id) });
@@ -65,6 +71,7 @@ export const knowledgeSourcesRepository = {
       sourceConfig: input.sourceConfig,
       errorMessage: null,
       chunkCount: null,
+      extractedText: null,
       createdAt: now,
       acquiredAt: now,
       indexedAt: null,
@@ -82,6 +89,10 @@ export const knowledgeSourcesRepository = {
     status: KnowledgeSourceStatus,
     errorMessage: string | null = null,
   ): Promise<KnowledgeSource | null> {
+    if (!ObjectId.isValid(id)) {
+      return null;
+    }
+
     const result = await getDb()
       .collection<KnowledgeSourceDoc>(COLLECTION)
       .findOneAndUpdate(
@@ -93,7 +104,38 @@ export const knowledgeSourcesRepository = {
     return result ? toDomain(result) : null;
   },
 
+  async markIndexedWithText(
+    id: string,
+    extractedText: string,
+  ): Promise<KnowledgeSource | null> {
+    if (!ObjectId.isValid(id)) {
+      return null;
+    }
+
+    const now = new Date();
+    const result = await getDb()
+      .collection<KnowledgeSourceDoc>(COLLECTION)
+      .findOneAndUpdate(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            status: 'indexed',
+            extractedText,
+            errorMessage: null,
+            indexedAt: now,
+          },
+        },
+        { returnDocument: 'after' },
+      );
+
+    return result ? toDomain(result) : null;
+  },
+
   async deleteById(id: string): Promise<boolean> {
+    if (!ObjectId.isValid(id)) {
+      return false;
+    }
+
     const result = await getDb()
       .collection<KnowledgeSourceDoc>(COLLECTION)
       .deleteOne({ _id: new ObjectId(id) });

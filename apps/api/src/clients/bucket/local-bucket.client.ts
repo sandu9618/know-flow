@@ -1,5 +1,5 @@
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import type { BucketClient } from './types.js';
 
 export function createLocalBucketClient(rootPath: string): BucketClient {
@@ -19,6 +19,11 @@ export function createLocalBucketClient(rootPath: string): BucketClient {
       const objectPath = await resolveObjectPath(input.key);
       await mkdir(dirname(objectPath), { recursive: true });
       await writeFile(objectPath, input.body);
+    },
+
+    async downloadObject(key) {
+      const objectPath = await resolveObjectPath(key);
+      return readFile(objectPath);
     },
 
     async deleteObject(key) {

@@ -23,6 +23,7 @@ export const config = {
   },
   llmProvider: process.env.LLM_PROVIDER ?? 'gemini',
   llmApiKey: process.env.LLM_API_KEY ?? '',
+  llmChatModel: process.env.LLM_CHAT_MODEL ?? 'gemini-2.0-flash',
   pythonWorkerUrl: process.env.PYTHON_WORKER_URL ?? 'http://localhost:8000',
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
   bucket: {

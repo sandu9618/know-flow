@@ -30,7 +30,7 @@ export const navItems: NavItem[] = [
     week: 2,
     weekLabel: 'Week 2',
     description: 'Ask questions about your knowledge library with cited answers.',
-    implemented: false,
+    implemented: true,
   },
   {
     label: 'Search',
