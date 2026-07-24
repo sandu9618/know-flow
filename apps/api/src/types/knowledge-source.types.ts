@@ -19,6 +19,12 @@ export type FileUploadSourceConfig = {
   sizeBytes: number;
 };
 
+export type FileUploadSourceConfigListItem = Omit<FileUploadSourceConfig, 'bucketKey'>;
+
+export type KnowledgeSourceListItem = Omit<KnowledgeSource, 'sourceConfig'> & {
+  sourceConfig: FileUploadSourceConfigListItem | Record<string, unknown>;
+};
+
 export type KnowledgeSource = {
   id: string;
   sourceType: KnowledgeSourceType;

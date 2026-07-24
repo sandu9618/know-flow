@@ -1,8 +1,8 @@
 import { ApiError, fetchJson, getApiBaseUrl } from '@/lib/api';
-import type { KnowledgeSource } from '@/types/knowledge-source.types';
+import type { KnowledgeSource, KnowledgeSourceListItem } from '@/types/knowledge-source.types';
 
-export async function listDocuments(): Promise<KnowledgeSource[]> {
-  const response = await fetchJson<{ data: KnowledgeSource[] }>('/api/documents');
+export async function listDocuments(): Promise<KnowledgeSourceListItem[]> {
+  const response = await fetchJson<{ data: KnowledgeSourceListItem[] }>('/api/documents');
   return response.data;
 }
 

@@ -3,7 +3,24 @@ import { useState } from 'react';
 import { uploadDocument } from '@/features/documents/documents.api';
 import { documentsQueryKey } from '@/features/documents/useDocuments';
 import { ApiError } from '@/lib/api';
-import type { KnowledgeSource } from '@/types/knowledge-source.types';
+import type { KnowledgeSource, KnowledgeSourceListItem } from '@/types/knowledge-source.types';
+
+function toListItem(source: KnowledgeSource): KnowledgeSourceListItem {
+  const { bucketKey: _bucketKey, ...sourceConfig } = source.sourceConfig;
+
+  return {
+    id: source.id,
+    sourceType: source.sourceType,
+    title: source.title,
+    status: source.status,
+    sourceConfig,
+    errorMessage: source.errorMessage,
+    chunkCount: source.chunkCount,
+    createdAt: source.createdAt,
+    acquiredAt: source.acquiredAt,
+    indexedAt: source.indexedAt,
+  };
+}
 
 export function useDocumentUpload() {
   const queryClient = useQueryClient();
@@ -18,8 +35,22 @@ export function useDocumentUpload() {
     onMutate: () => {
       setProgress(0);
     },
-    onSuccess: () => {
+    onSuccess: (source) => {
       setProgress(100);
+
+      const listItem = toListItem(source);
+      queryClient.setQueryData<KnowledgeSourceListItem[]>(documentsQueryKey, (current) => {
+        if (!current) {
+          return [listItem];
+        }
+
+        if (current.some((item) => item.id === listItem.id)) {
+          return current;
+        }
+
+        return [listItem, ...current];
+      });
+
       void queryClient.invalidateQueries({ queryKey: documentsQueryKey });
     },
     onError: () => {

@@ -12,7 +12,8 @@ import {
   buildFileUploadSourceConfig,
   deriveTitle,
 } from './acquisition/file-upload.adapter.js';
-import type { KnowledgeSource } from '../types/knowledge-source.types.js';
+import { toKnowledgeSourceListItem } from '../mappers/knowledge-source.mapper.js';
+import type { KnowledgeSource, KnowledgeSourceListItem } from '../types/knowledge-source.types.js';
 
 type UploadedFile = Express.Multer.File;
 
@@ -21,8 +22,9 @@ function isAllowedMimeType(mimeType: string): mimeType is (typeof ALLOWED_UPLOAD
 }
 
 export const documentsService = {
-  async list(): Promise<KnowledgeSource[]> {
-    return knowledgeSourcesRepository.findAll();
+  async list(): Promise<KnowledgeSourceListItem[]> {
+    const sources = await knowledgeSourcesRepository.findAll();
+    return sources.map(toKnowledgeSourceListItem);
   },
 
   async acquireFileUpload(input: {

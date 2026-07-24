@@ -42,7 +42,7 @@ export const knowledgeSourcesRepository = {
     const docs = await getDb()
       .collection<KnowledgeSourceDoc>(COLLECTION)
       .find({})
-      .sort({ createdAt: -1 })
+      .sort({ acquiredAt: -1, createdAt: -1 })
       .toArray();
 
     return docs.map(toDomain);
