@@ -1,10 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api';
-import { streamChat } from '@/features/chat/chat.api';
-import type { ChatMessage } from '@/types/chat.types';
+import { getConversationBySourceId, streamChat } from '@/features/chat/chat.api';
+import type { ChatMessage, ConversationMessageDto } from '@/types/chat.types';
 
 function createMessageId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+function toUiMessages(messages: ConversationMessageDto[]): ChatMessage[] {
+  return messages.map((message, index) => ({
+    id: `${message.timestamp}-${message.role}-${index}`,
+    role: message.role,
+    content: message.content,
+    ...(message.role === 'assistant'
+      ? { citations: message.citations ?? [] }
+      : {}),
+  }));
 }
 
 function toUserFacingChatError(err: unknown): string {
@@ -31,7 +42,6 @@ function toUserFacingChatError(err: unknown): string {
       return 'The AI service is temporarily rate-limited. Please wait a minute and try again.';
     }
 
-    // Avoid rendering long provider dumps if an older API response slips through
     if (err.message.length > 160 || /GoogleGenerativeAI|generativelanguage\.googleapis/i.test(err.message)) {
       return 'Something went wrong while getting an answer. Please try again.';
     }
@@ -54,12 +64,15 @@ function toUserFacingChatError(err: unknown): string {
 
 export function useChat() {
   const [sourceId, setSourceIdState] = useState<string>('');
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const historyRequestIdRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -72,34 +85,76 @@ export function useChat() {
     abortRef.current = null;
   }
 
+  async function loadHistory(nextSourceId: string): Promise<void> {
+    if (!nextSourceId) {
+      setConversationId(null);
+      setMessages([]);
+      setIsLoadingHistory(false);
+      return;
+    }
+
+    const requestId = ++historyRequestIdRef.current;
+    setIsLoadingHistory(true);
+
+    try {
+      const conversation = await getConversationBySourceId(nextSourceId);
+      if (requestId !== historyRequestIdRef.current) {
+        return;
+      }
+
+      if (conversation) {
+        setConversationId(conversation.id);
+        setMessages(toUiMessages(conversation.messages));
+      } else {
+        setConversationId(null);
+        setMessages([]);
+      }
+    } catch (err: unknown) {
+      if (requestId !== historyRequestIdRef.current) {
+        return;
+      }
+      setConversationId(null);
+      setMessages([]);
+      setError(toUserFacingChatError(err) || 'Failed to load conversation history.');
+    } finally {
+      if (requestId === historyRequestIdRef.current) {
+        setIsLoadingHistory(false);
+      }
+    }
+  }
+
   function setSourceId(nextSourceId: string) {
     abortActiveStream();
     setSourceIdState(nextSourceId);
-    setMessages([]);
     setDraft('');
     setError(null);
     setIsStreaming(false);
     setStreamingMessageId(null);
+    setConversationId(null);
+    setMessages([]);
+    void loadHistory(nextSourceId);
   }
 
   async function sendMessage(): Promise<void> {
     const question = draft.trim();
-    if (!question || !sourceId || isStreaming) {
+    if (!question || !sourceId || isStreaming || isLoadingHistory) {
       return;
     }
 
     abortActiveStream();
 
+    const userMessageId = createMessageId();
+    const assistantId = createMessageId();
     const userMessage: ChatMessage = {
-      id: createMessageId(),
+      id: userMessageId,
       role: 'user',
       content: question,
     };
-    const assistantId = createMessageId();
     const assistantMessage: ChatMessage = {
       id: assistantId,
       role: 'assistant',
       content: '',
+      citations: [],
     };
 
     const controller = new AbortController();
@@ -111,8 +166,6 @@ export function useChat() {
     setIsStreaming(true);
     setStreamingMessageId(assistantId);
 
-    let receivedText = false;
-
     try {
       await streamChat(
         { sourceId, question },
@@ -120,7 +173,6 @@ export function useChat() {
           signal: controller.signal,
           onEvent: (event) => {
             if (event.type === 'token') {
-              receivedText = true;
               setMessages((prev) =>
                 prev.map((message) =>
                   message.id === assistantId
@@ -129,18 +181,18 @@ export function useChat() {
                 ),
               );
             }
+
+            if (event.type === 'done') {
+              setConversationId(event.conversationId);
+            }
           },
         },
       );
     } catch (err: unknown) {
       if (controller.signal.aborted) {
+        // Incomplete turn is not persisted — drop local optimistic messages
         setMessages((prev) =>
-          prev.filter((message) => {
-            if (message.id !== assistantId) {
-              return true;
-            }
-            return message.content.trim().length > 0;
-          }),
+          prev.filter((message) => message.id !== assistantId && message.id !== userMessageId),
         );
       } else {
         const message = toUserFacingChatError(err);
@@ -148,9 +200,9 @@ export function useChat() {
           setError(message);
         }
 
-        if (!receivedText) {
-          setMessages((prev) => prev.filter((m) => m.id !== assistantId));
-        }
+        setMessages((prev) =>
+          prev.filter((message) => message.id !== assistantId && message.id !== userMessageId),
+        );
       }
     } finally {
       if (abortRef.current === controller) {
@@ -164,10 +216,12 @@ export function useChat() {
   return {
     sourceId,
     setSourceId,
+    conversationId,
     messages,
     draft,
     setDraft,
     isStreaming,
+    isLoadingHistory,
     streamingMessageId,
     error,
     sendMessage,

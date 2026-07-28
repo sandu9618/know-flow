@@ -3,6 +3,7 @@ import type {
   AskChatRequest,
   AskChatResponse,
   ChatStreamEvent,
+  ConversationDto,
 } from '@/types/chat.types';
 
 export async function askChat(request: AskChatRequest): Promise<AskChatResponse> {
@@ -14,6 +15,16 @@ export async function askChat(request: AskChatRequest): Promise<AskChatResponse>
     body: JSON.stringify(request),
   });
 
+  return response.data;
+}
+
+export async function getConversationBySourceId(
+  sourceId: string,
+): Promise<ConversationDto | null> {
+  const params = new URLSearchParams({ sourceId });
+  const response = await fetchJson<{ data: ConversationDto | null }>(
+    `/api/conversations?${params.toString()}`,
+  );
   return response.data;
 }
 

@@ -1,7 +1,9 @@
 import { getLlmClient } from '../clients/llm.client.js';
 import type { LlmMessage } from '../clients/llm/types.js';
 import { AppError } from '../errors/AppError.js';
+import { conversationsRepository } from '../repositories/conversations.repository.js';
 import { knowledgeSourcesRepository } from '../repositories/knowledge-sources.repository.js';
+import type { ConversationMessage } from '../types/conversation.types.js';
 import type { KnowledgeSource } from '../types/knowledge-source.types.js';
 
 const SYSTEM_INSTRUCTION =
@@ -18,24 +20,41 @@ export type AskAboutSourceResult = {
   answer: string;
   sourceId: string;
   model: string;
+  conversationId: string;
 };
 
 export type AnswerStreamHandle = {
+  conversationId: string;
   sourceId: string;
   model: string;
   tokens: AsyncIterable<string>;
 };
 
-function buildChatMessages(source: KnowledgeSource, question: string): LlmMessage[] {
+export type PersistTurnInput = {
+  conversationId: string;
+  question: string;
+  answer: string;
+};
+
+function buildChatMessages(
+  source: KnowledgeSource,
+  priorMessages: ConversationMessage[],
+  question: string,
+): LlmMessage[] {
+  const systemContent =
+    `${SYSTEM_INSTRUCTION}\n\n` +
+    `Document title: ${source.title}\n\n` +
+    `Document text:\n${source.extractedText}`;
+
+  const history: LlmMessage[] = priorMessages.map((message) => ({
+    role: message.role,
+    content: message.content,
+  }));
+
   return [
-    { role: 'system', content: SYSTEM_INSTRUCTION },
-    {
-      role: 'user',
-      content:
-        `Document title: ${source.title}\n\n` +
-        `Document text:\n${source.extractedText}\n\n` +
-        `Question: ${question}`,
-    },
+    { role: 'system', content: systemContent },
+    ...history,
+    { role: 'user', content: question },
   ];
 }
 
@@ -60,24 +79,68 @@ async function loadIndexedSource(sourceId: string): Promise<KnowledgeSource> {
 export const chatService = {
   async askAboutSource(input: AskAboutSourceInput): Promise<AskAboutSourceResult> {
     const source = await loadIndexedSource(input.sourceId);
+    const conversation = await conversationsRepository.findOrCreateBySourceId(source.id);
     const llm = getLlmClient();
-    const result = await llm.chat(buildChatMessages(source, input.question));
+    const result = await llm.chat(
+      buildChatMessages(source, conversation.messages, input.question),
+    );
+
+    await this.persistTurn({
+      conversationId: conversation.id,
+      question: input.question,
+      answer: result.content,
+    });
 
     return {
       answer: result.content,
       sourceId: source.id,
       model: result.model,
+      conversationId: conversation.id,
     };
   },
 
   async createAnswerStream(input: AskAboutSourceInput): Promise<AnswerStreamHandle> {
     const source = await loadIndexedSource(input.sourceId);
+    const conversation = await conversationsRepository.findOrCreateBySourceId(source.id);
     const llm = getLlmClient();
 
     return {
+      conversationId: conversation.id,
       sourceId: source.id,
       model: llm.getModelId(),
-      tokens: llm.stream(buildChatMessages(source, input.question)),
+      tokens: llm.stream(
+        buildChatMessages(source, conversation.messages, input.question),
+      ),
     };
+  },
+
+  async persistTurn(input: PersistTurnInput): Promise<void> {
+    const answer = input.answer.trim();
+    if (!answer) {
+      throw new AppError(
+        'LLM_EMPTY_RESPONSE',
+        'The AI service returned an empty answer. Please try again.',
+        502,
+      );
+    }
+
+    const now = new Date();
+    const updated = await conversationsRepository.appendMessages(input.conversationId, [
+      {
+        role: 'user',
+        content: input.question,
+        timestamp: now,
+      },
+      {
+        role: 'assistant',
+        content: answer,
+        citations: [],
+        timestamp: now,
+      },
+    ]);
+
+    if (!updated) {
+      throw new AppError('CONVERSATION_NOT_FOUND', 'Conversation not found', 404);
+    }
   },
 };

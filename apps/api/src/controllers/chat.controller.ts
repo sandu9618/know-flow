@@ -9,7 +9,7 @@ type AskChatRequest = Request & {
 
 type SseEvent =
   | { type: 'token'; text: string }
-  | { type: 'done'; sourceId: string; model: string }
+  | { type: 'done'; sourceId: string; model: string; conversationId: string }
   | { type: 'error'; code: string; message: string };
 
 function writeSse(res: Response, event: SseEvent): void {
@@ -45,21 +45,42 @@ export const chatController = {
     };
     req.on('close', onClose);
 
+    let answer = '';
+
     try {
       for await (const text of stream.tokens) {
         if (clientClosed) {
           break;
         }
+        answer += text;
         writeSse(res, { type: 'token', text });
       }
 
-      if (!clientClosed) {
-        writeSse(res, {
-          type: 'done',
-          sourceId: stream.sourceId,
-          model: stream.model,
-        });
+      if (clientClosed) {
+        return;
       }
+
+      if (!answer.trim()) {
+        writeSse(res, {
+          type: 'error',
+          code: 'LLM_EMPTY_RESPONSE',
+          message: 'The AI service returned an empty answer. Please try again.',
+        });
+        return;
+      }
+
+      await chatService.persistTurn({
+        conversationId: stream.conversationId,
+        question: req.body.question,
+        answer,
+      });
+
+      writeSse(res, {
+        type: 'done',
+        sourceId: stream.sourceId,
+        model: stream.model,
+        conversationId: stream.conversationId,
+      });
     } catch (error: unknown) {
       if (!clientClosed && !res.writableEnded) {
         if (error instanceof AppError) {

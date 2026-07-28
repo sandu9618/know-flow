@@ -17,6 +17,7 @@ export default function ChatPage() {
     draft,
     setDraft,
     isStreaming,
+    isLoadingHistory,
     streamingMessageId,
     error,
     sendMessage,
@@ -40,11 +41,15 @@ export default function ChatPage() {
           error={documentsQuery.error}
         />
 
-        <ChatMessageList
-          messages={messages}
-          isStreaming={isStreaming}
-          streamingMessageId={streamingMessageId}
-        />
+        {isLoadingHistory ? (
+          <p className={styles.status}>Loading conversation…</p>
+        ) : (
+          <ChatMessageList
+            messages={messages}
+            isStreaming={isStreaming}
+            streamingMessageId={streamingMessageId}
+          />
+        )}
 
         {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -54,7 +59,7 @@ export default function ChatPage() {
           onSubmit={() => {
             void sendMessage();
           }}
-          disabled={!sourceId || !hasIndexedSources}
+          disabled={!sourceId || !hasIndexedSources || isLoadingHistory}
           isStreaming={isStreaming}
         />
       </div>
