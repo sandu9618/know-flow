@@ -7,3 +7,8 @@ import { askChatSchema } from '../schemas/chat.schema.js';
 export const chatRouter = Router();
 
 chatRouter.post('/', validate(askChatSchema), asyncHandler(chatController.ask));
+chatRouter.post(
+  '/stream',
+  validate(askChatSchema),
+  asyncHandler(chatController.streamChat),
+);

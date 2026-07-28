@@ -3,11 +3,16 @@ import styles from '@/features/chat/ChatPage.module.css';
 
 type ChatMessageListProps = {
   messages: ChatMessage[];
-  isAsking: boolean;
+  isStreaming: boolean;
+  streamingMessageId: string | null;
 };
 
-export default function ChatMessageList({ messages, isAsking }: ChatMessageListProps) {
-  if (messages.length === 0 && !isAsking) {
+export default function ChatMessageList({
+  messages,
+  isStreaming,
+  streamingMessageId,
+}: ChatMessageListProps) {
+  if (messages.length === 0) {
     return (
       <p className={styles.empty}>
         Select an indexed document and ask a question about its content.
@@ -17,25 +22,29 @@ export default function ChatMessageList({ messages, isAsking }: ChatMessageListP
 
   return (
     <ul className={styles.messageList} aria-live="polite">
-      {messages.map((message) => (
-        <li
-          key={message.id}
-          className={
-            message.role === 'user' ? styles.messageUser : styles.messageAssistant
-          }
-        >
-          <span className={styles.messageRole}>
-            {message.role === 'user' ? 'You' : 'Assistant'}
-          </span>
-          <p className={styles.messageContent}>{message.content}</p>
-        </li>
-      ))}
-      {isAsking ? (
-        <li className={styles.messageAssistant}>
-          <span className={styles.messageRole}>Assistant</span>
-          <p className={styles.messageContent}>Thinking…</p>
-        </li>
-      ) : null}
+      {messages.map((message) => {
+        const isLiveAssistant =
+          isStreaming && message.id === streamingMessageId && message.role === 'assistant';
+
+        return (
+          <li
+            key={message.id}
+            className={
+              message.role === 'user' ? styles.messageUser : styles.messageAssistant
+            }
+          >
+            <span className={styles.messageRole}>
+              {message.role === 'user' ? 'You' : 'Assistant'}
+              {isLiveAssistant ? (
+                <span className={styles.streamingHint}>Streaming</span>
+              ) : null}
+            </span>
+            <p className={styles.messageContent}>
+              {message.content || (isLiveAssistant ? '…' : '')}
+            </p>
+          </li>
+        );
+      })}
     </ul>
   );
 }

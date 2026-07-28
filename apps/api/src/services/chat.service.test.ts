@@ -6,6 +6,7 @@ import type { KnowledgeSource } from '../types/knowledge-source.types.js';
 import { chatService } from './chat.service.js';
 
 const chatMock = vi.fn();
+const streamMock = vi.fn();
 
 vi.mock('../repositories/knowledge-sources.repository.js', () => ({
   knowledgeSourcesRepository: {
@@ -16,6 +17,7 @@ vi.mock('../repositories/knowledge-sources.repository.js', () => ({
 vi.mock('../clients/llm.client.js', () => ({
   getLlmClient: () => ({
     chat: chatMock,
+    stream: streamMock,
     getModelId: () => 'gemini-2.0-flash',
   }),
 }));
@@ -39,10 +41,19 @@ const indexedSource: KnowledgeSource = {
   indexedAt: new Date('2026-07-23T10:14:20.001Z'),
 };
 
+async function collectTokens(tokens: AsyncIterable<string>): Promise<string> {
+  let result = '';
+  for await (const chunk of tokens) {
+    result += chunk;
+  }
+  return result;
+}
+
 describe('chatService.askAboutSource', () => {
   beforeEach(() => {
     vi.mocked(knowledgeSourcesRepository.findById).mockReset();
     chatMock.mockReset();
+    streamMock.mockReset();
   });
 
   it('calls LlmClient with document text and returns the answer', async () => {
@@ -94,6 +105,75 @@ describe('chatService.askAboutSource', () => {
 
     await expect(
       chatService.askAboutSource({
+        sourceId: indexedSource.id,
+        question: 'Hello?',
+      }),
+    ).rejects.toMatchObject({
+      code: 'SOURCE_NOT_READY',
+      statusCode: 409,
+    } satisfies Partial<AppError>);
+  });
+});
+
+describe('chatService.createAnswerStream', () => {
+  beforeEach(() => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockReset();
+    chatMock.mockReset();
+    streamMock.mockReset();
+  });
+
+  it('streams tokens from LlmClient with the same document prompt', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(indexedSource);
+    streamMock.mockReturnValue({
+      async *[Symbol.asyncIterator]() {
+        yield 'EU customers';
+        yield ' can request';
+        yield ' a refund.';
+      },
+    });
+
+    const handle = await chatService.createAnswerStream({
+      sourceId: indexedSource.id,
+      question: 'What is the EU refund policy?',
+    });
+
+    expect(handle.sourceId).toBe(indexedSource.id);
+    expect(handle.model).toBe('gemini-2.0-flash');
+
+    const answer = await collectTokens(handle.tokens);
+    expect(answer).toBe('EU customers can request a refund.');
+
+    expect(streamMock).toHaveBeenCalledTimes(1);
+    const [messages] = streamMock.mock.calls[0] as [Array<{ role: string; content: string }>];
+    expect(messages[0]?.role).toBe('system');
+    expect(messages[1]?.content).toContain(indexedSource.extractedText);
+    expect(messages[1]?.content).toContain('What is the EU refund policy?');
+  });
+
+  it('throws 404 when the source does not exist', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(null);
+
+    await expect(
+      chatService.createAnswerStream({
+        sourceId: 'missing',
+        question: 'Hello?',
+      }),
+    ).rejects.toMatchObject({
+      code: 'SOURCE_NOT_FOUND',
+      statusCode: 404,
+    } satisfies Partial<AppError>);
+  });
+
+  it('throws 409 when extracted text is not ready', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue({
+      ...indexedSource,
+      status: 'indexing',
+      extractedText: null,
+      indexedAt: null,
+    });
+
+    await expect(
+      chatService.createAnswerStream({
         sourceId: indexedSource.id,
         question: 'Hello?',
       }),

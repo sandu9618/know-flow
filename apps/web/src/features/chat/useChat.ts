@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api';
-import { askChat } from '@/features/chat/chat.api';
+import { streamChat } from '@/features/chat/chat.api';
 import type { ChatMessage } from '@/types/chat.types';
 
 function createMessageId(): string {
@@ -39,6 +39,10 @@ function toUserFacingChatError(err: unknown): string {
     return err.message;
   }
 
+  if (err instanceof DOMException && err.name === 'AbortError') {
+    return '';
+  }
+
   if (err instanceof Error && err.message.trim()) {
     return err.message.length > 160
       ? 'Something went wrong while getting an answer. Please try again.'
@@ -52,45 +56,108 @@ export function useChat() {
   const [sourceId, setSourceIdState] = useState<string>('');
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState('');
-  const [isAsking, setIsAsking] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  function abortActiveStream(): void {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  }
 
   function setSourceId(nextSourceId: string) {
+    abortActiveStream();
     setSourceIdState(nextSourceId);
     setMessages([]);
     setDraft('');
     setError(null);
+    setIsStreaming(false);
+    setStreamingMessageId(null);
   }
 
   async function sendMessage(): Promise<void> {
     const question = draft.trim();
-    if (!question || !sourceId || isAsking) {
+    if (!question || !sourceId || isStreaming) {
       return;
     }
+
+    abortActiveStream();
 
     const userMessage: ChatMessage = {
       id: createMessageId(),
       role: 'user',
       content: question,
     };
+    const assistantId = createMessageId();
+    const assistantMessage: ChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+    };
 
-    setMessages((prev) => [...prev, userMessage]);
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setDraft('');
     setError(null);
-    setIsAsking(true);
+    setIsStreaming(true);
+    setStreamingMessageId(assistantId);
+
+    let receivedText = false;
 
     try {
-      const result = await askChat({ sourceId, question });
-      const assistantMessage: ChatMessage = {
-        id: createMessageId(),
-        role: 'assistant',
-        content: result.answer,
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      await streamChat(
+        { sourceId, question },
+        {
+          signal: controller.signal,
+          onEvent: (event) => {
+            if (event.type === 'token') {
+              receivedText = true;
+              setMessages((prev) =>
+                prev.map((message) =>
+                  message.id === assistantId
+                    ? { ...message, content: message.content + event.text }
+                    : message,
+                ),
+              );
+            }
+          },
+        },
+      );
     } catch (err: unknown) {
-      setError(toUserFacingChatError(err));
+      if (controller.signal.aborted) {
+        setMessages((prev) =>
+          prev.filter((message) => {
+            if (message.id !== assistantId) {
+              return true;
+            }
+            return message.content.trim().length > 0;
+          }),
+        );
+      } else {
+        const message = toUserFacingChatError(err);
+        if (message) {
+          setError(message);
+        }
+
+        if (!receivedText) {
+          setMessages((prev) => prev.filter((m) => m.id !== assistantId));
+        }
+      }
     } finally {
-      setIsAsking(false);
+      if (abortRef.current === controller) {
+        abortRef.current = null;
+      }
+      setIsStreaming(false);
+      setStreamingMessageId(null);
     }
   }
 
@@ -100,7 +167,8 @@ export function useChat() {
     messages,
     draft,
     setDraft,
-    isAsking,
+    isStreaming,
+    streamingMessageId,
     error,
     sendMessage,
   };

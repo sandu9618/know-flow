@@ -17,5 +17,6 @@ export type LlmChatResult = {
 
 export type LlmClient = {
   chat(messages: LlmMessage[], options?: LlmChatOptions): Promise<LlmChatResult>;
+  stream(messages: LlmMessage[], options?: LlmChatOptions): AsyncIterable<string>;
   getModelId(): string;
 };

@@ -6,7 +6,7 @@ type ChatComposerProps = {
   onDraftChange: (value: string) => void;
   onSubmit: () => void;
   disabled: boolean;
-  isAsking: boolean;
+  isStreaming: boolean;
 };
 
 export default function ChatComposer({
@@ -14,7 +14,7 @@ export default function ChatComposer({
   onDraftChange,
   onSubmit,
   disabled,
-  isAsking,
+  isStreaming,
 }: ChatComposerProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,11 +33,11 @@ export default function ChatComposer({
         onChange={(event) => onDraftChange(event.target.value)}
         placeholder="e.g. What is the EU refund policy?"
         rows={3}
-        disabled={disabled}
+        disabled={disabled || isStreaming}
       />
       <div className={styles.composerActions}>
-        <button type="submit" disabled={disabled || !draft.trim() || isAsking}>
-          {isAsking ? 'Asking…' : 'Ask'}
+        <button type="submit" disabled={disabled || !draft.trim() || isStreaming}>
+          {isStreaming ? 'Streaming…' : 'Ask'}
         </button>
       </div>
     </form>

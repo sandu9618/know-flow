@@ -81,6 +81,16 @@ function toProviderAppError(error: unknown): AppError {
   );
 }
 
+function assertConfigured(apiKey: string): void {
+  if (!apiKey.trim() || apiKey === 'your-api-key-here') {
+    throw new AppError(
+      'LLM_NOT_CONFIGURED',
+      'Chat is not configured correctly. Check LLM_API_KEY and try again.',
+      503,
+    );
+  }
+}
+
 export function createGeminiLlmClient(input: {
   apiKey: string;
   model: string;
@@ -94,13 +104,7 @@ export function createGeminiLlmClient(input: {
     },
 
     async chat(messages: LlmMessage[], options?: LlmChatOptions): Promise<LlmChatResult> {
-      if (!input.apiKey.trim() || input.apiKey === 'your-api-key-here') {
-        throw new AppError(
-          'LLM_NOT_CONFIGURED',
-          'Chat is not configured correctly. Check LLM_API_KEY and try again.',
-          503,
-        );
-      }
+      assertConfigured(input.apiKey);
 
       const { systemInstruction, contents } = toGeminiContents(messages);
 
@@ -139,6 +143,60 @@ export function createGeminiLlmClient(input: {
 
         throw toProviderAppError(error);
       }
+    },
+
+    stream(messages: LlmMessage[], options?: LlmChatOptions): AsyncIterable<string> {
+      assertConfigured(input.apiKey);
+
+      const { systemInstruction, contents } = toGeminiContents(messages);
+
+      if (contents.length === 0) {
+        throw new AppError('LLM_INVALID_REQUEST', 'At least one user message is required', 400);
+      }
+
+      const model = genAI.getGenerativeModel({
+        model: modelId,
+        systemInstruction,
+      });
+
+      return {
+        async *[Symbol.asyncIterator]() {
+          try {
+            const result = await model.generateContentStream({
+              contents,
+              generationConfig: {
+                temperature: options?.temperature,
+                maxOutputTokens: options?.maxOutputTokens,
+              },
+            });
+
+            let yieldedAny = false;
+
+            for await (const chunk of result.stream) {
+              const text = chunk.text();
+              if (!text) {
+                continue;
+              }
+              yieldedAny = true;
+              yield text;
+            }
+
+            if (!yieldedAny) {
+              throw new AppError(
+                'LLM_EMPTY_RESPONSE',
+                'The AI service returned an empty answer. Please try again.',
+                502,
+              );
+            }
+          } catch (error: unknown) {
+            if (error instanceof AppError) {
+              throw error;
+            }
+
+            throw toProviderAppError(error);
+          }
+        },
+      };
     },
   };
 }

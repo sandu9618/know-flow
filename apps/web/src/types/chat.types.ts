@@ -16,3 +16,25 @@ export type AskChatResponse = {
   sourceId: string;
   model: string;
 };
+
+export type ChatStreamTokenEvent = {
+  type: 'token';
+  text: string;
+};
+
+export type ChatStreamDoneEvent = {
+  type: 'done';
+  sourceId: string;
+  model: string;
+};
+
+export type ChatStreamErrorEvent = {
+  type: 'error';
+  code: string;
+  message: string;
+};
+
+export type ChatStreamEvent =
+  | ChatStreamTokenEvent
+  | ChatStreamDoneEvent
+  | ChatStreamErrorEvent;

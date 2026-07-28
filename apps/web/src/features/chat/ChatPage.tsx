@@ -16,7 +16,8 @@ export default function ChatPage() {
     messages,
     draft,
     setDraft,
-    isAsking,
+    isStreaming,
+    streamingMessageId,
     error,
     sendMessage,
   } = useChat();
@@ -39,7 +40,11 @@ export default function ChatPage() {
           error={documentsQuery.error}
         />
 
-        <ChatMessageList messages={messages} isAsking={isAsking} />
+        <ChatMessageList
+          messages={messages}
+          isStreaming={isStreaming}
+          streamingMessageId={streamingMessageId}
+        />
 
         {error ? <p className={styles.error}>{error}</p> : null}
 
@@ -50,7 +55,7 @@ export default function ChatPage() {
             void sendMessage();
           }}
           disabled={!sourceId || !hasIndexedSources}
-          isAsking={isAsking}
+          isStreaming={isStreaming}
         />
       </div>
     </article>
