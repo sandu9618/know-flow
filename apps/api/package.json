@@ -12,6 +12,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1093.0",
     "@google/generative-ai": "^0.24.1",
+    "@knowflow/constants": "*",
     "@knowflow/prompts": "*",
     "bullmq": "^5.80.11",
     "cors": "^2.8.6",

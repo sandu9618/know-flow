@@ -38,6 +38,6 @@ export type KnowledgeSource = {
   indexedAt: string | null;
 };
 
-export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+export { MAX_UPLOAD_BYTES } from '@knowflow/constants';
 
 export const ACCEPTED_UPLOAD_TYPES = '.pdf,.txt,application/pdf,text/plain';

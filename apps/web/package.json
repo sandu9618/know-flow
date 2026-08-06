@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@knowflow/constants": "*",
     "@knowflow/prompts": "*",
     "@tanstack/react-query": "^5.101.2",
     "react": "^19.0.0",

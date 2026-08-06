@@ -37,9 +37,9 @@ As a **team member**, I want to **receive a clear error when I try to upload a f
 
 ## Acceptance Criteria
 
-- [ ] Files over 25 MB rejected at API level
-- [ ] UI shows error before wasting upload bandwidth where possible
-- [ ] No `documents` record created for rejected upload
+- [x] Files over 25 MB rejected at API level
+- [x] UI shows error before wasting upload bandwidth where possible
+- [x] No `documents` record created for rejected upload
 
 ## Implementation Notes
 

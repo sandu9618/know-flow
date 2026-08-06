@@ -1,4 +1,6 @@
-export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;
+import { MAX_UPLOAD_BYTES } from '@knowflow/constants';
+
+export { MAX_UPLOAD_BYTES };
 
 export const ALLOWED_UPLOAD_MIME_TYPES = ['application/pdf', 'text/plain'] as const;
 
