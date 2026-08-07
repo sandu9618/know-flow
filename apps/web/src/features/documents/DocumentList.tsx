@@ -38,6 +38,9 @@ export default function DocumentList() {
   return (
     <section className={styles.listSection} aria-labelledby="document-list-heading">
       <h2 id="document-list-heading">Knowledge sources</h2>
+      <p className={styles.listHint}>
+        Upload finishes first; indexing runs in the background.
+      </p>
 
       {isLoading && (
         <p className={styles.status} role="status">
@@ -72,7 +75,13 @@ export default function DocumentList() {
               <li key={document.id} className={styles.sourceItem}>
                 <div className={styles.sourceHeader}>
                   <p className={styles.sourceTitle}>{document.title}</p>
-                  <span className={`${styles.statusBadge} ${styles[`status_${document.status}`]}`}>
+                  <span
+                    className={`${styles.statusBadge} ${styles[`status_${document.status}`]}`}
+                    aria-live={document.status === 'indexing' ? 'polite' : undefined}
+                  >
+                    {document.status === 'indexing' && (
+                      <span className={styles.statusSpinner} aria-hidden="true" />
+                    )}
                     {formatStatus(document.status)}
                   </span>
                 </div>

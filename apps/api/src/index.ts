@@ -4,6 +4,7 @@ import type { Server } from 'node:http';
 import { closeMongo, connectMongo, getMongoHostForLogging } from './clients/mongodb.client.js';
 import { config, validateStartupConfig } from './config.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { chunksRepository } from './repositories/chunks.repository.js';
 import { conversationsRepository } from './repositories/conversations.repository.js';
 import { knowledgeSourcesRepository } from './repositories/knowledge-sources.repository.js';
 import { promptTemplatesRepository } from './repositories/prompt-templates.repository.js';
@@ -33,6 +34,7 @@ async function startServer(): Promise<Server> {
     console.log(`MongoDB connected (${getMongoHostForLogging()})`);
     await promptTemplatesRepository.ensureIndexes();
     await knowledgeSourcesRepository.ensureIndexes();
+    await chunksRepository.ensureIndexes();
     await conversationsRepository.ensureIndexes();
     startIngestionWorker();
     console.log('Ingestion worker started');

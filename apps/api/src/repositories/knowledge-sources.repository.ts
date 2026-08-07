@@ -104,9 +104,12 @@ export const knowledgeSourcesRepository = {
     return result ? toDomain(result) : null;
   },
 
-  async markIndexedWithText(
+  async markIndexed(
     id: string,
-    extractedText: string,
+    input: {
+      extractedText: string;
+      chunkCount: number;
+    },
   ): Promise<KnowledgeSource | null> {
     if (!ObjectId.isValid(id)) {
       return null;
@@ -120,7 +123,8 @@ export const knowledgeSourcesRepository = {
         {
           $set: {
             status: 'indexed',
-            extractedText,
+            extractedText: input.extractedText,
+            chunkCount: input.chunkCount,
             errorMessage: null,
             indexedAt: now,
           },

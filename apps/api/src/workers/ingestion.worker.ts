@@ -5,9 +5,7 @@ import {
   INGESTION_QUEUE_NAME,
 } from '../constants/documents.constants.js';
 import type { IngestSourceJobPayload } from '../clients/ingestion-queue.client.js';
-import { bucketClient } from '../clients/bucket.client.js';
-import { knowledgeSourcesRepository } from '../repositories/knowledge-sources.repository.js';
-import { extractTextFromBuffer } from '../services/ingestion/extract-text.js';
+import { ingestSource } from '../services/ingestion/ingest-source.service.js';
 
 let ingestionWorker: Worker<IngestSourceJobPayload> | null = null;
 
@@ -24,30 +22,13 @@ export function startIngestionWorker(): Worker<IngestSourceJobPayload> {
       }
 
       const { sourceId } = job.data;
-      const source = await knowledgeSourcesRepository.findById(sourceId);
-
-      if (!source) {
-        console.warn(`[ingestion] source not found: ${sourceId}`);
-        return;
-      }
-
-      console.log(
-        `[ingestion] extracting text for "${source.title}" (${sourceId})`,
-      );
-
-      await knowledgeSourcesRepository.updateStatus(sourceId, 'indexing');
+      console.log(`[ingestion] processing source ${sourceId}`);
 
       try {
-        const body = await bucketClient.downloadObject(source.sourceConfig.bucketKey);
-        const extractedText = await extractTextFromBuffer(
-          body,
-          source.sourceConfig.mimeType,
-        );
-        await knowledgeSourcesRepository.markIndexedWithText(sourceId, extractedText);
-        console.log(`[ingestion] indexed "${source.title}" (${sourceId})`);
+        await ingestSource(sourceId);
+        console.log(`[ingestion] completed source ${sourceId}`);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
-        await knowledgeSourcesRepository.updateStatus(sourceId, 'failed', message);
         console.error(`[ingestion] failed for ${sourceId}: ${message}`);
         throw error;
       }

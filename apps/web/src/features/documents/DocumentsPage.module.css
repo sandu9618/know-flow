@@ -191,6 +191,9 @@
 }
 
 .statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   flex-shrink: 0;
   padding: 0.2rem 0.55rem;
   font-size: 0.8rem;
@@ -199,6 +202,27 @@
   border-radius: 999px;
   background: #e8ecf4;
   color: #4a5568;
+}
+
+.listHint {
+  margin: 0.35rem 0 1rem;
+  color: #5f6b7a;
+  font-size: 0.9rem;
+}
+
+.statusSpinner {
+  width: 0.65rem;
+  height: 0.65rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: indexingSpin 0.8s linear infinite;
+}
+
+@keyframes indexingSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .status_acquired,

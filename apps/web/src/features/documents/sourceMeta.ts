@@ -48,5 +48,19 @@ export function getSourceMetaFields(
     value: formatters.formatDate(source.acquiredAt),
   });
 
+  if (source.indexedAt) {
+    fields.push({
+      label: 'Indexed',
+      value: formatters.formatDate(source.indexedAt),
+    });
+  }
+
+  if (source.status === 'indexed' && source.chunkCount != null) {
+    fields.push({
+      label: 'Chunks',
+      value: String(source.chunkCount),
+    });
+  }
+
   return fields;
 }
