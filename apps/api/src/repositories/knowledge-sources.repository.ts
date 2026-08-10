@@ -50,6 +50,19 @@ export const knowledgeSourcesRepository = {
     return docs.map(toDomain);
   },
 
+  async findIndexedWithChunks(): Promise<KnowledgeSource[]> {
+    const docs = await getDb()
+      .collection<KnowledgeSourceDoc>(COLLECTION)
+      .find({
+        status: 'indexed',
+        chunkCount: { $gt: 0 },
+      })
+      .sort({ acquiredAt: -1, createdAt: -1 })
+      .toArray();
+
+    return docs.map(toDomain);
+  },
+
   async findById(id: string): Promise<KnowledgeSource | null> {
     if (!ObjectId.isValid(id)) {
       return null;

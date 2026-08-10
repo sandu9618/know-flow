@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { ApiError } from '@/lib/api';
 import { getConversationBySourceId, streamChat } from '@/features/chat/chat.api';
-import type { ChatMessage, ConversationMessageDto } from '@/types/chat.types';
+import type { AskChatRequest, ChatMessage, ConversationMessageDto } from '@/types/chat.types';
+import { LIBRARY_CONVERSATION_KEY, LIBRARY_PICKER_VALUE } from '@/types/chat.types';
 
 function createMessageId(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -93,11 +94,14 @@ export function useChat() {
       return;
     }
 
+    const conversationSourceId =
+      nextSourceId === LIBRARY_PICKER_VALUE ? LIBRARY_CONVERSATION_KEY : nextSourceId;
+
     const requestId = ++historyRequestIdRef.current;
     setIsLoadingHistory(true);
 
     try {
-      const conversation = await getConversationBySourceId(nextSourceId);
+      const conversation = await getConversationBySourceId(conversationSourceId);
       if (requestId !== historyRequestIdRef.current) {
         return;
       }
@@ -167,27 +171,29 @@ export function useChat() {
     setStreamingMessageId(assistantId);
 
     try {
-      await streamChat(
-        { sourceId, question },
-        {
-          signal: controller.signal,
-          onEvent: (event) => {
-            if (event.type === 'token') {
-              setMessages((prev) =>
-                prev.map((message) =>
-                  message.id === assistantId
-                    ? { ...message, content: message.content + event.text }
-                    : message,
-                ),
-              );
-            }
+      const request: AskChatRequest =
+        sourceId === LIBRARY_PICKER_VALUE
+          ? { question, scope: 'library' }
+          : { question, scope: 'source', sourceId };
 
-            if (event.type === 'done') {
-              setConversationId(event.conversationId);
-            }
-          },
+      await streamChat(request, {
+        signal: controller.signal,
+        onEvent: (event) => {
+          if (event.type === 'token') {
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId
+                  ? { ...message, content: message.content + event.text }
+                  : message,
+              ),
+            );
+          }
+
+          if (event.type === 'done') {
+            setConversationId(event.conversationId);
+          }
         },
-      );
+      });
     } catch (err: unknown) {
       if (controller.signal.aborted) {
         // Incomplete turn is not persisted — drop local optimistic messages

@@ -1,19 +1,27 @@
 import { getLlmClient } from '../clients/llm.client.js';
 import type { LlmMessage } from '../clients/llm/types.js';
+import { LIBRARY_CONVERSATION_KEY } from '../constants/rag.constants.js';
 import { AppError } from '../errors/AppError.js';
 import { conversationsRepository } from '../repositories/conversations.repository.js';
 import { knowledgeSourcesRepository } from '../repositories/knowledge-sources.repository.js';
+import {
+  retrieveTopChunks,
+  type RetrievedChunk,
+} from '../services/rag/retrieve-chunks.service.js';
 import type { ConversationMessage } from '../types/conversation.types.js';
 import type { KnowledgeSource } from '../types/knowledge-source.types.js';
 
 const SYSTEM_INSTRUCTION =
-  'You are a helpful assistant that answers questions using only the provided document. ' +
-  'If the answer is not in the document, say you do not know based on the document. ' +
-  'Do not invent facts that are not supported by the document text.';
+  'You are a helpful assistant that answers questions using only the provided excerpts. ' +
+  'If the answer is not in the excerpts, say you do not know based on the provided material. ' +
+  'Do not invent facts that are not supported by the excerpt text.';
 
-export type AskAboutSourceInput = {
-  sourceId: string;
+export type ChatScope = 'source' | 'library';
+
+export type AskChatInput = {
   question: string;
+  scope: ChatScope;
+  sourceId?: string;
 };
 
 export type AskAboutSourceResult = {
@@ -36,15 +44,32 @@ export type PersistTurnInput = {
   answer: string;
 };
 
+type ChatContext = {
+  conversationSourceId: string;
+  retrievalSourceIds: string[];
+  sourceTitles: Record<string, string>;
+};
+
+function buildExcerptContext(retrievedChunks: RetrievedChunk[]): string {
+  if (retrievedChunks.length === 0) {
+    return 'No excerpts were retrieved.';
+  }
+
+  return retrievedChunks
+    .map(
+      (chunk) => `[${chunk.sourceTitle} — chunk ${chunk.index}]\n${chunk.text}`,
+    )
+    .join('\n\n---\n\n');
+}
+
 function buildChatMessages(
-  source: KnowledgeSource,
+  retrievedChunks: RetrievedChunk[],
   priorMessages: ConversationMessage[],
   question: string,
 ): LlmMessage[] {
   const systemContent =
     `${SYSTEM_INSTRUCTION}\n\n` +
-    `Document title: ${source.title}\n\n` +
-    `Document text:\n${source.extractedText}`;
+    `Relevant excerpts:\n${buildExcerptContext(retrievedChunks)}`;
 
   const history: LlmMessage[] = priorMessages.map((message) => ({
     role: message.role,
@@ -65,7 +90,7 @@ async function loadIndexedSource(sourceId: string): Promise<KnowledgeSource> {
     throw new AppError('SOURCE_NOT_FOUND', 'Knowledge source not found', 404);
   }
 
-  if (source.status !== 'indexed' || !source.extractedText?.trim()) {
+  if (source.status !== 'indexed' || !source.chunkCount || source.chunkCount <= 0) {
     throw new AppError(
       'SOURCE_NOT_READY',
       'Document text is not ready for chat yet. Wait until indexing completes.',
@@ -76,41 +101,98 @@ async function loadIndexedSource(sourceId: string): Promise<KnowledgeSource> {
   return source;
 }
 
+async function resolveChatContext(input: AskChatInput): Promise<ChatContext> {
+  if (input.scope === 'library') {
+    const indexedSources = await knowledgeSourcesRepository.findIndexedWithChunks();
+
+    if (indexedSources.length === 0) {
+      throw new AppError(
+        'SOURCE_NOT_READY',
+        'No indexed documents are ready for chat yet. Upload and wait for indexing to complete.',
+        409,
+      );
+    }
+
+    return {
+      conversationSourceId: LIBRARY_CONVERSATION_KEY,
+      retrievalSourceIds: indexedSources.map((source) => source.id),
+      sourceTitles: Object.fromEntries(
+        indexedSources.map((source) => [source.id, source.title]),
+      ),
+    };
+  }
+
+  if (!input.sourceId) {
+    throw new AppError('SOURCE_NOT_FOUND', 'Knowledge source not found', 404);
+  }
+
+  const source = await loadIndexedSource(input.sourceId);
+
+  return {
+    conversationSourceId: source.id,
+    retrievalSourceIds: [source.id],
+    sourceTitles: {
+      [source.id]: source.title,
+    },
+  };
+}
+
+async function prepareChatTurn(input: AskChatInput): Promise<{
+  conversationSourceId: string;
+  conversationId: string;
+  messages: LlmMessage[];
+}> {
+  const context = await resolveChatContext(input);
+  const conversation = await conversationsRepository.findOrCreateBySourceId(
+    context.conversationSourceId,
+  );
+  const retrievedChunks = await retrieveTopChunks({
+    question: input.question,
+    sourceIds: context.retrievalSourceIds,
+    sourceTitles: context.sourceTitles,
+  });
+  const messages = buildChatMessages(
+    retrievedChunks,
+    conversation.messages,
+    input.question,
+  );
+
+  return {
+    conversationSourceId: context.conversationSourceId,
+    conversationId: conversation.id,
+    messages,
+  };
+}
+
 export const chatService = {
-  async askAboutSource(input: AskAboutSourceInput): Promise<AskAboutSourceResult> {
-    const source = await loadIndexedSource(input.sourceId);
-    const conversation = await conversationsRepository.findOrCreateBySourceId(source.id);
+  async askAboutSource(input: AskChatInput): Promise<AskAboutSourceResult> {
+    const prepared = await prepareChatTurn(input);
     const llm = getLlmClient();
-    const result = await llm.chat(
-      buildChatMessages(source, conversation.messages, input.question),
-    );
+    const result = await llm.chat(prepared.messages);
 
     await this.persistTurn({
-      conversationId: conversation.id,
+      conversationId: prepared.conversationId,
       question: input.question,
       answer: result.content,
     });
 
     return {
       answer: result.content,
-      sourceId: source.id,
+      sourceId: prepared.conversationSourceId,
       model: result.model,
-      conversationId: conversation.id,
+      conversationId: prepared.conversationId,
     };
   },
 
-  async createAnswerStream(input: AskAboutSourceInput): Promise<AnswerStreamHandle> {
-    const source = await loadIndexedSource(input.sourceId);
-    const conversation = await conversationsRepository.findOrCreateBySourceId(source.id);
+  async createAnswerStream(input: AskChatInput): Promise<AnswerStreamHandle> {
+    const prepared = await prepareChatTurn(input);
     const llm = getLlmClient();
 
     return {
-      conversationId: conversation.id,
-      sourceId: source.id,
+      conversationId: prepared.conversationId,
+      sourceId: prepared.conversationSourceId,
       model: llm.getModelId(),
-      tokens: llm.stream(
-        buildChatMessages(source, conversation.messages, input.question),
-      ),
+      tokens: llm.stream(prepared.messages),
     };
   },
 

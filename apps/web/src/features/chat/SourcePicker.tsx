@@ -1,4 +1,5 @@
 import type { KnowledgeSourceListItem } from '@/types/knowledge-source.types';
+import { LIBRARY_PICKER_VALUE } from '@/types/chat.types';
 import styles from '@/features/chat/ChatPage.module.css';
 
 type SourcePickerProps = {
@@ -47,6 +48,7 @@ export default function SourcePicker({
         onChange={(event) => onSelect(event.target.value)}
       >
         <option value="">Select a document…</option>
+        <option value={LIBRARY_PICKER_VALUE}>Entire library</option>
         {indexedSources.map((source) => (
           <option key={source.id} value={source.id}>
             {source.title}

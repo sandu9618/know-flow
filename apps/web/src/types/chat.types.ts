@@ -1,3 +1,9 @@
+export const LIBRARY_CONVERSATION_KEY = '000000000000000000000001';
+
+export const LIBRARY_PICKER_VALUE = '__library__';
+
+export type ChatScope = 'source' | 'library';
+
 export type ChatRole = 'user' | 'assistant';
 
 export type ChatMessage = {
@@ -8,8 +14,9 @@ export type ChatMessage = {
 };
 
 export type AskChatRequest = {
-  sourceId: string;
   question: string;
+  scope: ChatScope;
+  sourceId?: string;
 };
 
 export type AskChatResponse = {

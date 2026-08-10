@@ -19,8 +19,9 @@ function writeSse(res: Response, event: SseEvent): void {
 export const chatController = {
   async ask(req: AskChatRequest, res: Response): Promise<void> {
     const result = await chatService.askAboutSource({
-      sourceId: req.body.sourceId,
       question: req.body.question,
+      scope: req.body.scope,
+      sourceId: req.body.sourceId,
     });
 
     res.status(200).json({ data: result });
@@ -28,8 +29,9 @@ export const chatController = {
 
   async streamChat(req: AskChatRequest, res: Response): Promise<void> {
     const stream = await chatService.createAnswerStream({
-      sourceId: req.body.sourceId,
       question: req.body.question,
+      scope: req.body.scope,
+      sourceId: req.body.sourceId,
     });
 
     res.status(200);

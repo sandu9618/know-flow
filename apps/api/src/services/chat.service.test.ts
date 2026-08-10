@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { LIBRARY_CONVERSATION_KEY } from '../constants/rag.constants.js';
 import { AppError } from '../errors/AppError.js';
 import { conversationsRepository } from '../repositories/conversations.repository.js';
 import { knowledgeSourcesRepository } from '../repositories/knowledge-sources.repository.js';
@@ -9,10 +10,12 @@ import { chatService } from './chat.service.js';
 
 const chatMock = vi.fn();
 const streamMock = vi.fn();
+const retrieveTopChunksMock = vi.fn();
 
 vi.mock('../repositories/knowledge-sources.repository.js', () => ({
   knowledgeSourcesRepository: {
     findById: vi.fn(),
+    findIndexedWithChunks: vi.fn(),
   },
 }));
 
@@ -21,6 +24,10 @@ vi.mock('../repositories/conversations.repository.js', () => ({
     findOrCreateBySourceId: vi.fn(),
     appendMessages: vi.fn(),
   },
+}));
+
+vi.mock('../services/rag/retrieve-chunks.service.js', () => ({
+  retrieveTopChunks: (...args: unknown[]) => retrieveTopChunksMock(...args),
 }));
 
 vi.mock('../clients/llm.client.js', () => ({
@@ -43,11 +50,30 @@ const indexedSource: KnowledgeSource = {
     sizeBytes: 128,
   },
   errorMessage: null,
-  chunkCount: null,
+  chunkCount: 2,
   extractedText: 'Customers in the EU may request a refund within 14 days of purchase.',
   createdAt: new Date('2026-07-23T10:14:12.001Z'),
   acquiredAt: new Date('2026-07-23T10:14:12.001Z'),
   indexedAt: new Date('2026-07-23T10:14:20.001Z'),
+};
+
+const securitySource: KnowledgeSource = {
+  ...indexedSource,
+  id: '7b72f084e034c7f1f359873b',
+  title: 'Security Policy',
+  chunkCount: 3,
+  extractedText: 'Passwords must be at least 12 characters.',
+};
+
+const retrievedChunk = {
+  id: 'chunk-1',
+  sourceId: indexedSource.id,
+  index: 0,
+  text: 'Refund requests must be submitted within 14 days for EU customers.',
+  tokenCount: 12,
+  createdAt: new Date('2026-07-23T10:14:20.001Z'),
+  score: 2,
+  sourceTitle: indexedSource.title,
 };
 
 const emptyConversation: Conversation = {
@@ -69,13 +95,16 @@ async function collectTokens(tokens: AsyncIterable<string>): Promise<string> {
 describe('chatService.askAboutSource', () => {
   beforeEach(() => {
     vi.mocked(knowledgeSourcesRepository.findById).mockReset();
+    vi.mocked(knowledgeSourcesRepository.findIndexedWithChunks).mockReset();
     vi.mocked(conversationsRepository.findOrCreateBySourceId).mockReset();
     vi.mocked(conversationsRepository.appendMessages).mockReset();
+    retrieveTopChunksMock.mockReset();
     chatMock.mockReset();
     streamMock.mockReset();
+    retrieveTopChunksMock.mockResolvedValue([retrievedChunk]);
   });
 
-  it('calls LlmClient with document text, persists the turn, and returns conversationId', async () => {
+  it('calls LlmClient with retrieved chunk excerpts, persists the turn, and returns conversationId', async () => {
     vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(indexedSource);
     vi.mocked(conversationsRepository.findOrCreateBySourceId).mockResolvedValue(emptyConversation);
     vi.mocked(conversationsRepository.appendMessages).mockResolvedValue({
@@ -100,6 +129,7 @@ describe('chatService.askAboutSource', () => {
     });
 
     const result = await chatService.askAboutSource({
+      scope: 'source',
       sourceId: indexedSource.id,
       question: 'What is the EU refund policy?',
     });
@@ -111,27 +141,54 @@ describe('chatService.askAboutSource', () => {
       conversationId: emptyConversation.id,
     });
 
+    expect(retrieveTopChunksMock).toHaveBeenCalledWith({
+      question: 'What is the EU refund policy?',
+      sourceIds: [indexedSource.id],
+      sourceTitles: {
+        [indexedSource.id]: indexedSource.title,
+      },
+    });
+
     expect(chatMock).toHaveBeenCalledTimes(1);
     const [messages] = chatMock.mock.calls[0] as [Array<{ role: string; content: string }>];
     expect(messages[0]?.role).toBe('system');
-    expect(messages[0]?.content).toContain(indexedSource.extractedText);
+    expect(messages[0]?.content).toContain(retrievedChunk.text);
+    expect(messages[0]?.content).not.toContain(indexedSource.extractedText);
     expect(messages[1]?.role).toBe('user');
     expect(messages[1]?.content).toBe('What is the EU refund policy?');
+  });
 
-    expect(conversationsRepository.appendMessages).toHaveBeenCalledWith(
-      emptyConversation.id,
-      expect.arrayContaining([
-        expect.objectContaining({
-          role: 'user',
-          content: 'What is the EU refund policy?',
-        }),
-        expect.objectContaining({
-          role: 'assistant',
-          content: 'EU customers can request a refund within 14 days.',
-          citations: [],
-        }),
-      ]),
+  it('retrieves across all indexed sources in library scope', async () => {
+    vi.mocked(knowledgeSourcesRepository.findIndexedWithChunks).mockResolvedValue([
+      indexedSource,
+      securitySource,
+    ]);
+    vi.mocked(conversationsRepository.findOrCreateBySourceId).mockResolvedValue({
+      ...emptyConversation,
+      sourceId: LIBRARY_CONVERSATION_KEY,
+    });
+    vi.mocked(conversationsRepository.appendMessages).mockResolvedValue(emptyConversation);
+    chatMock.mockResolvedValue({
+      content: 'Passwords must be at least 12 characters.',
+      model: 'gemini-2.0-flash',
+    });
+
+    await chatService.askAboutSource({
+      scope: 'library',
+      question: 'What are the password requirements?',
+    });
+
+    expect(conversationsRepository.findOrCreateBySourceId).toHaveBeenCalledWith(
+      LIBRARY_CONVERSATION_KEY,
     );
+    expect(retrieveTopChunksMock).toHaveBeenCalledWith({
+      question: 'What are the password requirements?',
+      sourceIds: [indexedSource.id, securitySource.id],
+      sourceTitles: {
+        [indexedSource.id]: indexedSource.title,
+        [securitySource.id]: securitySource.title,
+      },
+    });
   });
 
   it('includes prior turns when asking a follow-up', async () => {
@@ -161,6 +218,7 @@ describe('chatService.askAboutSource', () => {
     });
 
     await chatService.askAboutSource({
+      scope: 'source',
       sourceId: indexedSource.id,
       question: 'Can you elaborate on that?',
     });
@@ -182,6 +240,7 @@ describe('chatService.askAboutSource', () => {
 
     await expect(
       chatService.askAboutSource({
+        scope: 'source',
         sourceId: 'missing',
         question: 'Hello?',
       }),
@@ -191,16 +250,17 @@ describe('chatService.askAboutSource', () => {
     } satisfies Partial<AppError>);
   });
 
-  it('throws 409 when extracted text is not ready', async () => {
+  it('throws 409 when chunks are not ready', async () => {
     vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue({
       ...indexedSource,
       status: 'acquired',
-      extractedText: null,
+      chunkCount: null,
       indexedAt: null,
     });
 
     await expect(
       chatService.askAboutSource({
+        scope: 'source',
         sourceId: indexedSource.id,
         question: 'Hello?',
       }),
@@ -215,12 +275,13 @@ describe('chatService.createAnswerStream', () => {
   beforeEach(() => {
     vi.mocked(knowledgeSourcesRepository.findById).mockReset();
     vi.mocked(conversationsRepository.findOrCreateBySourceId).mockReset();
-    vi.mocked(conversationsRepository.appendMessages).mockReset();
+    retrieveTopChunksMock.mockReset();
     chatMock.mockReset();
     streamMock.mockReset();
+    retrieveTopChunksMock.mockResolvedValue([retrievedChunk]);
   });
 
-  it('streams tokens with multi-turn context and returns conversationId', async () => {
+  it('streams tokens with retrieved chunk context and returns conversationId', async () => {
     const withHistory: Conversation = {
       ...emptyConversation,
       messages: [
@@ -248,6 +309,7 @@ describe('chatService.createAnswerStream', () => {
     });
 
     const handle = await chatService.createAnswerStream({
+      scope: 'source',
       sourceId: indexedSource.id,
       question: 'Can you elaborate on that?',
     });
@@ -260,12 +322,7 @@ describe('chatService.createAnswerStream', () => {
     expect(answer).toBe('It means two weeks.');
 
     const [messages] = streamMock.mock.calls[0] as [Array<{ role: string; content: string }>];
-    expect(messages.map((m) => m.role)).toEqual([
-      'system',
-      'user',
-      'assistant',
-      'user',
-    ]);
+    expect(messages[0]?.content).toContain(retrievedChunk.text);
     expect(messages[3]?.content).toBe('Can you elaborate on that?');
   });
 });

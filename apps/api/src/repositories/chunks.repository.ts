@@ -63,14 +63,22 @@ export const chunksRepository = {
   },
 
   async findBySourceId(sourceId: string): Promise<Chunk[]> {
-    if (!ObjectId.isValid(sourceId)) {
+    return this.findBySourceIds([sourceId]);
+  },
+
+  async findBySourceIds(sourceIds: string[]): Promise<Chunk[]> {
+    const objectIds = sourceIds
+      .filter((sourceId) => ObjectId.isValid(sourceId))
+      .map((sourceId) => new ObjectId(sourceId));
+
+    if (objectIds.length === 0) {
       return [];
     }
 
     const docs = await getDb()
       .collection<ChunkDoc>(COLLECTION)
-      .find({ sourceId: new ObjectId(sourceId) })
-      .sort({ index: 1 })
+      .find({ sourceId: { $in: objectIds } })
+      .sort({ sourceId: 1, index: 1 })
       .toArray();
 
     return docs.map(toDomain);
