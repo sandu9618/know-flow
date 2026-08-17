@@ -191,6 +191,13 @@ export function useChat() {
 
           if (event.type === 'done') {
             setConversationId(event.conversationId);
+            setMessages((prev) =>
+              prev.map((message) =>
+                message.id === assistantId
+                  ? { ...message, citations: event.citations }
+                  : message,
+              ),
+            );
           }
         },
       });

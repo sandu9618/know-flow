@@ -84,6 +84,23 @@ export const chunksRepository = {
     return docs.map(toDomain);
   },
 
+  async findByIds(ids: string[]): Promise<Chunk[]> {
+    const objectIds = ids
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
+
+    if (objectIds.length === 0) {
+      return [];
+    }
+
+    const docs = await getDb()
+      .collection<ChunkDoc>(COLLECTION)
+      .find({ _id: { $in: objectIds } })
+      .toArray();
+
+    return docs.map(toDomain);
+  },
+
   async ensureIndexes(): Promise<void> {
     const collection = getDb().collection<ChunkDoc>(COLLECTION);
     await collection.createIndex({ sourceId: 1, index: 1 }, { unique: true });

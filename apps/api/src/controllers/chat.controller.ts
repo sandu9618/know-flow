@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import { AppError } from '../errors/AppError.js';
 import type { AskChatBody } from '../schemas/chat.schema.js';
 import { chatService } from '../services/chat.service.js';
+import type { CitationDto } from '../types/citation.types.js';
 
 type AskChatRequest = Request & {
   body: AskChatBody;
@@ -9,7 +10,13 @@ type AskChatRequest = Request & {
 
 type SseEvent =
   | { type: 'token'; text: string }
-  | { type: 'done'; sourceId: string; model: string; conversationId: string }
+  | {
+      type: 'done';
+      sourceId: string;
+      model: string;
+      conversationId: string;
+      citations: CitationDto[];
+    }
   | { type: 'error'; code: string; message: string };
 
 function writeSse(res: Response, event: SseEvent): void {
@@ -75,6 +82,7 @@ export const chatController = {
         conversationId: stream.conversationId,
         question: req.body.question,
         answer,
+        citations: stream.citations.map((citation) => citation.chunkId),
       });
 
       writeSse(res, {
@@ -82,6 +90,7 @@ export const chatController = {
         sourceId: stream.sourceId,
         model: stream.model,
         conversationId: stream.conversationId,
+        citations: stream.citations,
       });
     } catch (error: unknown) {
       if (!clientClosed && !res.writableEnded) {

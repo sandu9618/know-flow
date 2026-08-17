@@ -139,7 +139,31 @@ describe('chatService.askAboutSource', () => {
       sourceId: indexedSource.id,
       model: 'gemini-2.0-flash',
       conversationId: emptyConversation.id,
+      citations: [
+        {
+          chunkId: retrievedChunk.id,
+          sourceId: retrievedChunk.sourceId,
+          sourceTitle: retrievedChunk.sourceTitle,
+          chunkIndex: retrievedChunk.index,
+          text: retrievedChunk.text,
+        },
+      ],
     });
+
+    expect(conversationsRepository.appendMessages).toHaveBeenCalledWith(
+      emptyConversation.id,
+      [
+        expect.objectContaining({
+          role: 'user',
+          content: 'What is the EU refund policy?',
+        }),
+        expect.objectContaining({
+          role: 'assistant',
+          content: 'EU customers can request a refund within 14 days.',
+          citations: [retrievedChunk.id],
+        }),
+      ],
+    );
 
     expect(retrieveTopChunksMock).toHaveBeenCalledWith({
       question: 'What is the EU refund policy?',
@@ -317,6 +341,15 @@ describe('chatService.createAnswerStream', () => {
     expect(handle.conversationId).toBe(withHistory.id);
     expect(handle.sourceId).toBe(indexedSource.id);
     expect(handle.model).toBe('gemini-2.0-flash');
+    expect(handle.citations).toEqual([
+      {
+        chunkId: retrievedChunk.id,
+        sourceId: retrievedChunk.sourceId,
+        sourceTitle: retrievedChunk.sourceTitle,
+        chunkIndex: retrievedChunk.index,
+        text: retrievedChunk.text,
+      },
+    ]);
 
     const answer = await collectTokens(handle.tokens);
     expect(answer).toBe('It means two weeks.');
@@ -332,13 +365,14 @@ describe('chatService.persistTurn', () => {
     vi.mocked(conversationsRepository.appendMessages).mockReset();
   });
 
-  it('appends user and assistant messages with empty citations', async () => {
+  it('appends user and assistant messages with citation chunk IDs', async () => {
     vi.mocked(conversationsRepository.appendMessages).mockResolvedValue(emptyConversation);
 
     await chatService.persistTurn({
       conversationId: emptyConversation.id,
       question: 'Hello?',
       answer: 'Hi there.',
+      citations: [retrievedChunk.id],
     });
 
     expect(conversationsRepository.appendMessages).toHaveBeenCalledWith(
@@ -351,7 +385,7 @@ describe('chatService.persistTurn', () => {
         expect.objectContaining({
           role: 'assistant',
           content: 'Hi there.',
-          citations: [],
+          citations: [retrievedChunk.id],
         }),
       ],
     );
@@ -363,6 +397,7 @@ describe('chatService.persistTurn', () => {
         conversationId: emptyConversation.id,
         question: 'Hello?',
         answer: '   ',
+        citations: [],
       }),
     ).rejects.toMatchObject({
       code: 'LLM_EMPTY_RESPONSE',

@@ -6,11 +6,19 @@ export type ChatScope = 'source' | 'library';
 
 export type ChatRole = 'user' | 'assistant';
 
+export type CitationDto = {
+  chunkId: string;
+  sourceId: string;
+  sourceTitle: string;
+  chunkIndex: number;
+  text: string;
+};
+
 export type ChatMessage = {
   id: string;
   role: ChatRole;
   content: string;
-  citations?: string[];
+  citations?: CitationDto[];
 };
 
 export type AskChatRequest = {
@@ -24,13 +32,14 @@ export type AskChatResponse = {
   sourceId: string;
   model: string;
   conversationId: string;
+  citations: CitationDto[];
 };
 
 export type ConversationMessageDto = {
   role: ChatRole;
   content: string;
   timestamp: string;
-  citations?: string[];
+  citations?: CitationDto[];
 };
 
 export type ConversationDto = {
@@ -51,6 +60,7 @@ export type ChatStreamDoneEvent = {
   sourceId: string;
   model: string;
   conversationId: string;
+  citations: CitationDto[];
 };
 
 export type ChatStreamErrorEvent = {

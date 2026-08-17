@@ -75,6 +75,23 @@ export const knowledgeSourcesRepository = {
     return doc ? toDomain(doc) : null;
   },
 
+  async findByIds(ids: string[]): Promise<KnowledgeSource[]> {
+    const objectIds = ids
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
+
+    if (objectIds.length === 0) {
+      return [];
+    }
+
+    const docs = await getDb()
+      .collection<KnowledgeSourceDoc>(COLLECTION)
+      .find({ _id: { $in: objectIds } })
+      .toArray();
+
+    return docs.map(toDomain);
+  },
+
   async insertFileUpload(input: CreateFileUploadSourceInput): Promise<KnowledgeSource> {
     const now = new Date();
     const doc: KnowledgeSourceDoc = {

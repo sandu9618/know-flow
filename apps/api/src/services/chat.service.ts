@@ -2,12 +2,14 @@ import { getLlmClient } from '../clients/llm.client.js';
 import type { LlmMessage } from '../clients/llm/types.js';
 import { LIBRARY_CONVERSATION_KEY } from '../constants/rag.constants.js';
 import { AppError } from '../errors/AppError.js';
+import { toCitationDto } from '../mappers/citation.mapper.js';
 import { conversationsRepository } from '../repositories/conversations.repository.js';
 import { knowledgeSourcesRepository } from '../repositories/knowledge-sources.repository.js';
 import {
   retrieveTopChunks,
   type RetrievedChunk,
 } from '../services/rag/retrieve-chunks.service.js';
+import type { CitationDto } from '../types/citation.types.js';
 import type { ConversationMessage } from '../types/conversation.types.js';
 import type { KnowledgeSource } from '../types/knowledge-source.types.js';
 
@@ -29,12 +31,14 @@ export type AskAboutSourceResult = {
   sourceId: string;
   model: string;
   conversationId: string;
+  citations: CitationDto[];
 };
 
 export type AnswerStreamHandle = {
   conversationId: string;
   sourceId: string;
   model: string;
+  citations: CitationDto[];
   tokens: AsyncIterable<string>;
 };
 
@@ -42,6 +46,7 @@ export type PersistTurnInput = {
   conversationId: string;
   question: string;
   answer: string;
+  citations: string[];
 };
 
 type ChatContext = {
@@ -81,6 +86,10 @@ function buildChatMessages(
     ...history,
     { role: 'user', content: question },
   ];
+}
+
+function toCitations(retrievedChunks: RetrievedChunk[]): CitationDto[] {
+  return retrievedChunks.map((chunk) => toCitationDto(chunk, chunk.sourceTitle));
 }
 
 async function loadIndexedSource(sourceId: string): Promise<KnowledgeSource> {
@@ -141,6 +150,8 @@ async function prepareChatTurn(input: AskChatInput): Promise<{
   conversationSourceId: string;
   conversationId: string;
   messages: LlmMessage[];
+  citations: CitationDto[];
+  citationIds: string[];
 }> {
   const context = await resolveChatContext(input);
   const conversation = await conversationsRepository.findOrCreateBySourceId(
@@ -151,6 +162,7 @@ async function prepareChatTurn(input: AskChatInput): Promise<{
     sourceIds: context.retrievalSourceIds,
     sourceTitles: context.sourceTitles,
   });
+  const citations = toCitations(retrievedChunks);
   const messages = buildChatMessages(
     retrievedChunks,
     conversation.messages,
@@ -161,6 +173,8 @@ async function prepareChatTurn(input: AskChatInput): Promise<{
     conversationSourceId: context.conversationSourceId,
     conversationId: conversation.id,
     messages,
+    citations,
+    citationIds: citations.map((citation) => citation.chunkId),
   };
 }
 
@@ -174,6 +188,7 @@ export const chatService = {
       conversationId: prepared.conversationId,
       question: input.question,
       answer: result.content,
+      citations: prepared.citationIds,
     });
 
     return {
@@ -181,6 +196,7 @@ export const chatService = {
       sourceId: prepared.conversationSourceId,
       model: result.model,
       conversationId: prepared.conversationId,
+      citations: prepared.citations,
     };
   },
 
@@ -192,6 +208,7 @@ export const chatService = {
       conversationId: prepared.conversationId,
       sourceId: prepared.conversationSourceId,
       model: llm.getModelId(),
+      citations: prepared.citations,
       tokens: llm.stream(prepared.messages),
     };
   },
@@ -216,7 +233,7 @@ export const chatService = {
       {
         role: 'assistant',
         content: answer,
-        citations: [],
+        citations: input.citations,
         timestamp: now,
       },
     ]);

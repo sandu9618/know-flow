@@ -96,6 +96,51 @@
   line-height: 1.5;
 }
 
+.citationList {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.citationItem {
+  margin: 0;
+}
+
+.citationDetails {
+  border: 1px solid #d0d7e2;
+  border-radius: 6px;
+  background: #f8fafc;
+}
+
+.citationSummary {
+  cursor: pointer;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #3b5bdb;
+  list-style-position: outside;
+}
+
+.citationSummary::-webkit-details-marker {
+  color: #5c6370;
+}
+
+.citationSnippet {
+  margin: 0;
+  padding: 0 0.65rem 0.65rem;
+  max-height: 12rem;
+  overflow: auto;
+  font: inherit;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: #2d3748;
+}
+
 .composer {
   display: flex;
   flex-direction: column;

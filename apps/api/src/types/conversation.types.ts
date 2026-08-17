@@ -1,9 +1,12 @@
+import type { CitationDto } from './citation.types.js';
+
 export type ConversationMessageRole = 'user' | 'assistant';
 
 export type ConversationMessage = {
   role: ConversationMessageRole;
   content: string;
   timestamp: Date;
+  /** Stored chunk IDs only (Mongo). */
   citations?: string[];
 };
 
@@ -22,7 +25,8 @@ export type ConversationDto = {
     role: ConversationMessageRole;
     content: string;
     timestamp: string;
-    citations?: string[];
+    /** Enriched citations for API clients (hydrated from chunk IDs). */
+    citations?: CitationDto[];
   }>;
   createdAt: string;
   updatedAt: string;

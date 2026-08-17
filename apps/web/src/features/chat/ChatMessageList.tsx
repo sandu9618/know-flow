@@ -1,4 +1,5 @@
 import type { ChatMessage } from '@/types/chat.types';
+import CitationList from '@/features/chat/CitationList';
 import styles from '@/features/chat/ChatPage.module.css';
 
 type ChatMessageListProps = {
@@ -25,6 +26,10 @@ export default function ChatMessageList({
       {messages.map((message) => {
         const isLiveAssistant =
           isStreaming && message.id === streamingMessageId && message.role === 'assistant';
+        const showCitations =
+          message.role === 'assistant' &&
+          !isLiveAssistant &&
+          (message.citations?.length ?? 0) > 0;
 
         return (
           <li
@@ -42,6 +47,7 @@ export default function ChatMessageList({
             <p className={styles.messageContent}>
               {message.content || (isLiveAssistant ? '…' : '')}
             </p>
+            {showCitations ? <CitationList citations={message.citations ?? []} /> : null}
           </li>
         );
       })}
