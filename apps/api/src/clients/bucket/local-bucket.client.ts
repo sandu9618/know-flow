@@ -1,5 +1,7 @@
+import { createReadStream as fsCreateReadStream } from 'node:fs';
 import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import type { Readable } from 'node:stream';
 import type { BucketClient } from './types.js';
 
 export function createLocalBucketClient(rootPath: string): BucketClient {
@@ -24,6 +26,11 @@ export function createLocalBucketClient(rootPath: string): BucketClient {
     async downloadObject(key) {
       const objectPath = await resolveObjectPath(key);
       return readFile(objectPath);
+    },
+
+    async createReadStream(key): Promise<Readable> {
+      const objectPath = await resolveObjectPath(key);
+      return fsCreateReadStream(objectPath);
     },
 
     async deleteObject(key) {

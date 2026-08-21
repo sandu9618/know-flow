@@ -1,15 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { bucketClient } from '../../clients/bucket.client.js';
 import { chunksRepository } from '../../repositories/chunks.repository.js';
 import { knowledgeSourcesRepository } from '../../repositories/knowledge-sources.repository.js';
 import type { KnowledgeSource } from '../../types/knowledge-source.types.js';
+import { getContentAdapter } from '../acquisition/adapters.js';
 import { ingestSource } from './ingest-source.service.js';
 
-vi.mock('../../clients/bucket.client.js', () => ({
-  bucketClient: {
-    downloadObject: vi.fn(),
-  },
+vi.mock('../acquisition/adapters.js', () => ({
+  getContentAdapter: vi.fn(),
 }));
 
 vi.mock('../../repositories/chunks.repository.js', () => ({
@@ -25,12 +23,6 @@ vi.mock('../../repositories/knowledge-sources.repository.js', () => ({
     markIndexed: vi.fn(),
   },
 }));
-
-vi.mock('./extract-text.js', () => ({
-  extractTextFromBuffer: vi.fn(),
-}));
-
-import { extractTextFromBuffer } from './extract-text.js';
 
 const sampleSource: KnowledgeSource = {
   id: '6a61e973d923b6f0e248762a',
@@ -52,24 +44,33 @@ const sampleSource: KnowledgeSource = {
 };
 
 describe('ingestSource', () => {
+  const resolveText = vi.fn();
+
   beforeEach(() => {
     vi.mocked(knowledgeSourcesRepository.findById).mockReset();
     vi.mocked(knowledgeSourcesRepository.updateStatus).mockReset();
     vi.mocked(knowledgeSourcesRepository.markIndexed).mockReset();
     vi.mocked(chunksRepository.replaceForSource).mockReset();
-    vi.mocked(bucketClient.downloadObject).mockReset();
-    vi.mocked(extractTextFromBuffer).mockReset();
+    vi.mocked(getContentAdapter).mockReset();
+    resolveText.mockReset();
+    vi.mocked(getContentAdapter).mockReturnValue({
+      sourceType: 'file_upload',
+      displayName: 'File Upload',
+      implemented: true,
+      resolveText,
+    });
   });
 
-  it('marks source indexing, stores chunks, and marks indexed with chunkCount', async () => {
+  it('marks source indexing, stores chunks, and marks indexed with chunkCount only', async () => {
     const extractedText = 'Refund policy summary for EU customers.';
     vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(sampleSource);
-    vi.mocked(bucketClient.downloadObject).mockResolvedValue(Buffer.from(extractedText, 'utf8'));
-    vi.mocked(extractTextFromBuffer).mockResolvedValue(extractedText);
+    resolveText.mockResolvedValue(extractedText);
     vi.mocked(chunksRepository.replaceForSource).mockResolvedValue(1);
 
     await ingestSource(sampleSource.id);
 
+    expect(getContentAdapter).toHaveBeenCalledWith('file_upload');
+    expect(resolveText).toHaveBeenCalledWith(sampleSource);
     expect(knowledgeSourcesRepository.updateStatus).toHaveBeenCalledWith(
       sampleSource.id,
       'indexing',
@@ -84,15 +85,17 @@ describe('ingestSource', () => {
       ]),
     );
     expect(knowledgeSourcesRepository.markIndexed).toHaveBeenCalledWith(sampleSource.id, {
-      extractedText,
       chunkCount: 1,
     });
+    expect(knowledgeSourcesRepository.markIndexed).toHaveBeenCalledWith(
+      sampleSource.id,
+      expect.not.objectContaining({ extractedText }),
+    );
   });
 
   it('marks source failed when extracted text cannot be chunked', async () => {
     vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(sampleSource);
-    vi.mocked(bucketClient.downloadObject).mockResolvedValue(Buffer.from(' ', 'utf8'));
-    vi.mocked(extractTextFromBuffer).mockResolvedValue('   ');
+    resolveText.mockResolvedValue('   ');
 
     await expect(ingestSource(sampleSource.id)).rejects.toThrow(
       'No text content available to index',
@@ -105,5 +108,70 @@ describe('ingestSource', () => {
     );
     expect(chunksRepository.replaceForSource).not.toHaveBeenCalled();
     expect(knowledgeSourcesRepository.markIndexed).not.toHaveBeenCalled();
+  });
+
+  it('marks source failed when no ingest adapter exists and does not persist chunks', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue({
+      ...sampleSource,
+      sourceType: 'jira',
+    });
+    vi.mocked(getContentAdapter).mockImplementation((sourceType) => {
+      throw new Error(`No ingest adapter for source type: ${sourceType}`);
+    });
+
+    await expect(ingestSource(sampleSource.id)).rejects.toThrow(
+      'No ingest adapter for source type: jira',
+    );
+
+    expect(chunksRepository.replaceForSource).not.toHaveBeenCalled();
+    expect(knowledgeSourcesRepository.markIndexed).not.toHaveBeenCalled();
+    expect(knowledgeSourcesRepository.updateStatus).toHaveBeenCalledWith(
+      sampleSource.id,
+      'failed',
+      'No ingest adapter for source type: jira',
+    );
+  });
+
+  it('persists chunks for one source before processing the next', async () => {
+    const sourceA = { ...sampleSource, id: 'aaaaaaaaaaaaaaaaaaaaaaaa' };
+    const sourceB = { ...sampleSource, id: 'bbbbbbbbbbbbbbbbbbbbbbbb' };
+    const sourceC = { ...sampleSource, id: 'cccccccccccccccccccccccc' };
+    const order: string[] = [];
+
+    vi.mocked(knowledgeSourcesRepository.findById).mockImplementation(async (id) => {
+      if (id === sourceA.id) return sourceA;
+      if (id === sourceB.id) return sourceB;
+      if (id === sourceC.id) return sourceC;
+      return null;
+    });
+
+    resolveText.mockImplementation(async (source) => {
+      order.push(`resolve:${source.id}`);
+      return 'Refund policy summary for EU customers.';
+    });
+
+    vi.mocked(chunksRepository.replaceForSource).mockImplementation(async (sourceId) => {
+      order.push(`persist:${sourceId}`);
+      return 1;
+    });
+
+    await ingestSource(sourceA.id);
+    await ingestSource(sourceB.id);
+    await ingestSource(sourceC.id);
+
+    expect(order).toEqual([
+      `resolve:${sourceA.id}`,
+      `persist:${sourceA.id}`,
+      `resolve:${sourceB.id}`,
+      `persist:${sourceB.id}`,
+      `resolve:${sourceC.id}`,
+      `persist:${sourceC.id}`,
+    ]);
+    expect(knowledgeSourcesRepository.markIndexed).toHaveBeenNthCalledWith(1, sourceA.id, {
+      chunkCount: 1,
+    });
+    expect(knowledgeSourcesRepository.markIndexed).toHaveBeenNthCalledWith(3, sourceC.id, {
+      chunkCount: 1,
+    });
   });
 });

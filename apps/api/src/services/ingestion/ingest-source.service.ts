@@ -1,8 +1,7 @@
-import { bucketClient } from '../../clients/bucket.client.js';
 import { chunksRepository } from '../../repositories/chunks.repository.js';
 import { knowledgeSourcesRepository } from '../../repositories/knowledge-sources.repository.js';
+import { getContentAdapter } from '../acquisition/adapters.js';
 import { chunkText } from './chunk-text.js';
-import { extractTextFromBuffer } from './extract-text.js';
 
 export async function ingestSource(sourceId: string): Promise<void> {
   const source = await knowledgeSourcesRepository.findById(sourceId);
@@ -14,11 +13,8 @@ export async function ingestSource(sourceId: string): Promise<void> {
   await knowledgeSourcesRepository.updateStatus(sourceId, 'indexing');
 
   try {
-    const body = await bucketClient.downloadObject(source.sourceConfig.bucketKey);
-    const extractedText = await extractTextFromBuffer(
-      body,
-      source.sourceConfig.mimeType,
-    );
+    const adapter = getContentAdapter(source.sourceType);
+    const extractedText = await adapter.resolveText(source);
     const chunks = chunkText(extractedText);
 
     if (chunks.length === 0) {
@@ -27,7 +23,6 @@ export async function ingestSource(sourceId: string): Promise<void> {
 
     await chunksRepository.replaceForSource(sourceId, chunks);
     await knowledgeSourcesRepository.markIndexed(sourceId, {
-      extractedText,
       chunkCount: chunks.length,
     });
   } catch (error: unknown) {

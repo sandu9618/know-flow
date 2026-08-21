@@ -3,6 +3,7 @@ import { config } from '../config.js';
 import {
   INGEST_SOURCE_JOB_NAME,
   INGESTION_QUEUE_NAME,
+  INGESTION_WORKER_CONCURRENCY,
 } from '../constants/documents.constants.js';
 import type { IngestSourceJobPayload } from '../clients/ingestion-queue.client.js';
 import { ingestSource } from '../services/ingestion/ingest-source.service.js';
@@ -35,7 +36,7 @@ export function startIngestionWorker(): Worker<IngestSourceJobPayload> {
     },
     {
       connection: { url: config.redisUrl },
-      concurrency: 1,
+      concurrency: INGESTION_WORKER_CONCURRENCY,
     },
   );
 

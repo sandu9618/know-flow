@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { PDFParse } from 'pdf-parse';
 
 export async function extractTextFromBuffer(
@@ -27,4 +28,12 @@ export async function extractTextFromBuffer(
   }
 
   throw new Error(`Unsupported mime type for extraction: ${mimeType}`);
+}
+
+export async function extractTextFromPath(
+  filePath: string,
+  mimeType: string,
+): Promise<string> {
+  const body = await readFile(filePath);
+  return extractTextFromBuffer(body, mimeType);
 }

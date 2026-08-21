@@ -9,3 +9,5 @@ export type AllowedUploadMimeType = (typeof ALLOWED_UPLOAD_MIME_TYPES)[number];
 export const INGESTION_QUEUE_NAME = 'ingestion';
 
 export const INGEST_SOURCE_JOB_NAME = 'ingest-source';
+
+export const INGESTION_WORKER_CONCURRENCY = 1;

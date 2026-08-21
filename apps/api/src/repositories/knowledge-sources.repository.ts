@@ -137,7 +137,6 @@ export const knowledgeSourcesRepository = {
   async markIndexed(
     id: string,
     input: {
-      extractedText: string;
       chunkCount: number;
     },
   ): Promise<KnowledgeSource | null> {
@@ -153,7 +152,7 @@ export const knowledgeSourcesRepository = {
         {
           $set: {
             status: 'indexed',
-            extractedText: input.extractedText,
+            extractedText: null,
             chunkCount: input.chunkCount,
             errorMessage: null,
             indexedAt: now,

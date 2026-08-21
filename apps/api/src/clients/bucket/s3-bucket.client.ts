@@ -6,6 +6,8 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { Readable } from 'node:stream';
+import type { ReadableStream as NodeWebReadableStream } from 'node:stream/web';
 import { config } from '../../config.js';
 import type { BucketClient } from './types.js';
 
@@ -37,6 +39,26 @@ async function bodyToBuffer(body: unknown): Promise<Buffer> {
       body as { transformToByteArray: () => Promise<Uint8Array> }
     ).transformToByteArray();
     return Buffer.from(bytes);
+  }
+
+  throw new Error('Unsupported S3 object body type');
+}
+
+function toNodeReadable(body: unknown): Readable {
+  if (body instanceof Readable) {
+    return body;
+  }
+
+  if (
+    body !== null &&
+    typeof body === 'object' &&
+    'transformToWebStream' in body &&
+    typeof (body as { transformToWebStream: () => NodeWebReadableStream }).transformToWebStream ===
+      'function'
+  ) {
+    return Readable.fromWeb(
+      (body as { transformToWebStream: () => NodeWebReadableStream }).transformToWebStream(),
+    );
   }
 
   throw new Error('Unsupported S3 object body type');
@@ -112,6 +134,23 @@ export function createS3BucketClient(): BucketClient {
       );
 
       return bodyToBuffer(result.Body);
+    },
+
+    async createReadStream(key) {
+      await ensureBucketExists();
+
+      const result = await getS3Client().send(
+        new GetObjectCommand({
+          Bucket: config.bucket.name,
+          Key: key,
+        }),
+      );
+
+      if (!result.Body) {
+        throw new Error('Empty S3 object body');
+      }
+
+      return toNodeReadable(result.Body);
     },
 
     async deleteObject(key) {
