@@ -27,7 +27,21 @@ import { startIngestionWorker, stopIngestionWorker } from './ingestion.worker.js
 type IngestJob = {
   name: string;
   data: IngestSourceJobPayload;
+  attemptsMade: number;
+  opts: { attempts?: number };
 };
+
+function ingestJob(
+  sourceId: string,
+  attempt: { attemptsMade: number; attempts: number } = { attemptsMade: 1, attempts: 1 },
+): IngestJob {
+  return {
+    name: INGEST_SOURCE_JOB_NAME,
+    data: { sourceId },
+    attemptsMade: attempt.attemptsMade,
+    opts: { attempts: attempt.attempts },
+  };
+}
 
 type IngestProcessor = (job: IngestJob) => Promise<void>;
 
@@ -73,8 +87,8 @@ describe('ingestion worker', () => {
     const processor = startAndGetProcessor();
 
     await processor({
+      ...ingestJob('6a61e973d923b6f0e248762a'),
       name: 'other-job',
-      data: { sourceId: '6a61e973d923b6f0e248762a' },
     });
 
     expect(ingestSource).not.toHaveBeenCalled();
@@ -90,15 +104,12 @@ describe('ingestion worker', () => {
     const processor = startAndGetProcessor();
     const sourceId = '6a61e973d923b6f0e248762a';
     let settled = false;
-    const pending = processor({
-      name: INGEST_SOURCE_JOB_NAME,
-      data: { sourceId },
-    }).then(() => {
+    const pending = processor(ingestJob(sourceId)).then(() => {
       settled = true;
     });
 
     expect(ingestSource).toHaveBeenCalledTimes(1);
-    expect(ingestSource).toHaveBeenCalledWith(sourceId);
+    expect(ingestSource).toHaveBeenCalledWith(sourceId, { isFinalAttempt: true });
     expect(settled).toBe(false);
 
     releaseIngest();
@@ -111,10 +122,25 @@ describe('ingestion worker', () => {
     const processor = startAndGetProcessor();
 
     await expect(
-      processor({
-        name: INGEST_SOURCE_JOB_NAME,
-        data: { sourceId: '6a61e973d923b6f0e248762a' },
-      }),
+      processor(ingestJob('6a61e973d923b6f0e248762a')),
     ).rejects.toThrow('extract failed');
+  });
+
+  it('passes isFinalAttempt false while BullMQ will retry', async () => {
+    const processor = startAndGetProcessor();
+    const sourceId = '6a61e973d923b6f0e248762a';
+
+    await processor(ingestJob(sourceId, { attemptsMade: 1, attempts: 3 }));
+
+    expect(ingestSource).toHaveBeenCalledWith(sourceId, { isFinalAttempt: false });
+  });
+
+  it('passes isFinalAttempt true on the last BullMQ attempt', async () => {
+    const processor = startAndGetProcessor();
+    const sourceId = '6a61e973d923b6f0e248762a';
+
+    await processor(ingestJob(sourceId, { attemptsMade: 2, attempts: 3 }));
+
+    expect(ingestSource).toHaveBeenCalledWith(sourceId, { isFinalAttempt: true });
   });
 });

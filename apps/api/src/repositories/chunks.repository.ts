@@ -52,6 +52,16 @@ export const chunksRepository = {
     return chunks.length;
   },
 
+  async deleteBySourceId(sourceId: string): Promise<void> {
+    if (!ObjectId.isValid(sourceId)) {
+      return;
+    }
+
+    await getDb()
+      .collection<ChunkDoc>(COLLECTION)
+      .deleteMany({ sourceId: new ObjectId(sourceId) });
+  },
+
   async countBySourceId(sourceId: string): Promise<number> {
     if (!ObjectId.isValid(sourceId)) {
       return 0;

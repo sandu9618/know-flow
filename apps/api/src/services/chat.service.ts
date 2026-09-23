@@ -99,6 +99,14 @@ async function loadIndexedSource(sourceId: string): Promise<KnowledgeSource> {
     throw new AppError('SOURCE_NOT_FOUND', 'Knowledge source not found', 404);
   }
 
+  if (source.status === 'failed') {
+    throw new AppError(
+      'SOURCE_NOT_READY',
+      'This document failed to index and cannot be used in chat.',
+      409,
+    );
+  }
+
   if (source.status !== 'indexed' || !source.chunkCount || source.chunkCount <= 0) {
     throw new AppError(
       'SOURCE_NOT_READY',

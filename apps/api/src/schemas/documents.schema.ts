@@ -19,3 +19,15 @@ export const uploadDocumentSchema = z.object({
 });
 
 export type UploadDocumentBody = z.infer<typeof uploadDocumentSchema>['body'];
+
+const objectIdParamSchema = z
+  .string()
+  .regex(/^[0-9a-fA-F]{24}$/, 'Invalid document id');
+
+export const documentIdSchema = z.object({
+  params: z.object({
+    id: objectIdParamSchema,
+  }),
+});
+
+export type DocumentIdParams = z.infer<typeof documentIdSchema>['params'];

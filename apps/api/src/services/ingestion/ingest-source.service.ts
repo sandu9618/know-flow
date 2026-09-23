@@ -3,7 +3,37 @@ import { knowledgeSourcesRepository } from '../../repositories/knowledge-sources
 import { getContentAdapter } from '../acquisition/adapters.js';
 import { chunkText } from './chunk-text.js';
 
-export async function ingestSource(sourceId: string): Promise<void> {
+const KNOWN_INGEST_ERROR_MESSAGES = new Set([
+  'TXT file is empty',
+  'PDF contained no extractable text',
+  'No text content available to index',
+]);
+
+const GENERIC_INGEST_ERROR_MESSAGE =
+  'Could not read this file. Retry indexing, or upload a corrected PDF or TXT file.';
+
+const MAX_INGEST_ERROR_MESSAGE_LENGTH = 200;
+
+export type IngestSourceOptions = {
+  isFinalAttempt?: boolean;
+};
+
+function toStoredIngestErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error);
+  const firstLine = raw.split('\n')[0]?.trim() ?? '';
+
+  if (KNOWN_INGEST_ERROR_MESSAGES.has(firstLine)) {
+    return firstLine.slice(0, MAX_INGEST_ERROR_MESSAGE_LENGTH);
+  }
+
+  return GENERIC_INGEST_ERROR_MESSAGE;
+}
+
+export async function ingestSource(
+  sourceId: string,
+  options: IngestSourceOptions = {},
+): Promise<void> {
+  const isFinalAttempt = options.isFinalAttempt ?? true;
   const source = await knowledgeSourcesRepository.findById(sourceId);
 
   if (!source) {
@@ -26,8 +56,15 @@ export async function ingestSource(sourceId: string): Promise<void> {
       chunkCount: chunks.length,
     });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    await knowledgeSourcesRepository.updateStatus(sourceId, 'failed', message);
+    if (isFinalAttempt) {
+      await knowledgeSourcesRepository.updateStatus(
+        sourceId,
+        'failed',
+        toStoredIngestErrorMessage(error),
+      );
+      await chunksRepository.deleteBySourceId(sourceId);
+    }
+
     throw error;
   }
 }

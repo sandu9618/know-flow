@@ -13,6 +13,7 @@ vi.mock('../acquisition/adapters.js', () => ({
 vi.mock('../../repositories/chunks.repository.js', () => ({
   chunksRepository: {
     replaceForSource: vi.fn(),
+    deleteBySourceId: vi.fn(),
   },
 }));
 
@@ -51,6 +52,7 @@ describe('ingestSource', () => {
     vi.mocked(knowledgeSourcesRepository.updateStatus).mockReset();
     vi.mocked(knowledgeSourcesRepository.markIndexed).mockReset();
     vi.mocked(chunksRepository.replaceForSource).mockReset();
+    vi.mocked(chunksRepository.deleteBySourceId).mockReset();
     vi.mocked(getContentAdapter).mockReset();
     resolveText.mockReset();
     vi.mocked(getContentAdapter).mockReturnValue({
@@ -91,6 +93,7 @@ describe('ingestSource', () => {
       sampleSource.id,
       expect.not.objectContaining({ extractedText }),
     );
+    expect(chunksRepository.deleteBySourceId).not.toHaveBeenCalled();
   });
 
   it('marks source failed when extracted text cannot be chunked', async () => {
@@ -106,8 +109,43 @@ describe('ingestSource', () => {
       'failed',
       'No text content available to index',
     );
+    expect(chunksRepository.deleteBySourceId).toHaveBeenCalledWith(sampleSource.id);
     expect(chunksRepository.replaceForSource).not.toHaveBeenCalled();
     expect(knowledgeSourcesRepository.markIndexed).not.toHaveBeenCalled();
+  });
+
+  it('does not mark failed or delete chunks before the final attempt', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(sampleSource);
+    resolveText.mockRejectedValue(new Error('Invalid PDF structure'));
+
+    await expect(
+      ingestSource(sampleSource.id, { isFinalAttempt: false }),
+    ).rejects.toThrow('Invalid PDF structure');
+
+    expect(knowledgeSourcesRepository.updateStatus).toHaveBeenCalledTimes(1);
+    expect(knowledgeSourcesRepository.updateStatus).toHaveBeenCalledWith(
+      sampleSource.id,
+      'indexing',
+    );
+    expect(chunksRepository.deleteBySourceId).not.toHaveBeenCalled();
+    expect(chunksRepository.replaceForSource).not.toHaveBeenCalled();
+  });
+
+  it('stores a short message and deletes chunks on the final attempt', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(sampleSource);
+    resolveText.mockRejectedValue(new Error('Invalid PDF structure\n    at PDFParse.parse'));
+
+    await expect(
+      ingestSource(sampleSource.id, { isFinalAttempt: true }),
+    ).rejects.toThrow('Invalid PDF structure');
+
+    expect(knowledgeSourcesRepository.updateStatus).toHaveBeenCalledWith(
+      sampleSource.id,
+      'failed',
+      'Could not read this file. Retry indexing, or upload a corrected PDF or TXT file.',
+    );
+    expect(chunksRepository.deleteBySourceId).toHaveBeenCalledWith(sampleSource.id);
+    expect(chunksRepository.replaceForSource).not.toHaveBeenCalled();
   });
 
   it('marks source failed when no ingest adapter exists and does not persist chunks', async () => {
@@ -128,8 +166,9 @@ describe('ingestSource', () => {
     expect(knowledgeSourcesRepository.updateStatus).toHaveBeenCalledWith(
       sampleSource.id,
       'failed',
-      'No ingest adapter for source type: jira',
+      'Could not read this file. Retry indexing, or upload a corrected PDF or TXT file.',
     );
+    expect(chunksRepository.deleteBySourceId).toHaveBeenCalledWith(sampleSource.id);
   });
 
   it('persists chunks for one source before processing the next', async () => {

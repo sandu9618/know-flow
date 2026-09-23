@@ -23,10 +23,14 @@ export function startIngestionWorker(): Worker<IngestSourceJobPayload> {
       }
 
       const { sourceId } = job.data;
+      const maxAttempts = job.opts.attempts ?? 1;
+      // BullMQ increments attemptsMade after the attempt finishes, so the
+      // value inside the processor is the number of earlier failures.
+      const isFinalAttempt = job.attemptsMade + 1 >= maxAttempts;
       console.log(`[ingestion] processing source ${sourceId}`);
 
       try {
-        await ingestSource(sourceId);
+        await ingestSource(sourceId, { isFinalAttempt });
         console.log(`[ingestion] completed source ${sourceId}`);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);

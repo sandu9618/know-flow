@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express';
-import type { UploadDocumentBody } from '../schemas/documents.schema.js';
+import type { DocumentIdParams, UploadDocumentBody } from '../schemas/documents.schema.js';
 import { documentsService } from '../services/documents.service.js';
 
 type UploadDocumentRequest = Request & {
@@ -19,5 +19,17 @@ export const documentsController = {
     });
 
     res.status(201).json({ data: source });
+  },
+
+  async reingestDocument(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as DocumentIdParams;
+    const source = await documentsService.reingest(id);
+    res.status(202).json({ data: source });
+  },
+
+  async deleteDocument(req: Request, res: Response): Promise<void> {
+    const { id } = req.params as DocumentIdParams;
+    await documentsService.delete(id);
+    res.sendStatus(204);
   },
 };

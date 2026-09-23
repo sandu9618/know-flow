@@ -273,3 +273,59 @@
   font-size: 0.95rem;
   word-break: break-word;
 }
+
+.failedPanel {
+  margin-top: 0.75rem;
+}
+
+.failedPanel .error {
+  margin: 0;
+}
+
+.failedActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.retryButton,
+.removeButton {
+  padding: 0.45rem 0.9rem;
+  font: inherit;
+  font-weight: 600;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.retryButton {
+  color: #fff;
+  background: #3b5bdb;
+  border: none;
+}
+
+.retryButton:hover:not(:disabled) {
+  background: #2f4ac0;
+}
+
+.removeButton {
+  color: #9b1c1c;
+  background: #fff;
+  border: 1px solid #f5c2c2;
+}
+
+.removeButton:hover:not(:disabled) {
+  background: #fde8e8;
+}
+
+.retryButton:disabled,
+.removeButton:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.actionError {
+  margin: 0.75rem 0 0;
+  color: #9b1c1c;
+  font-size: 0.9rem;
+}

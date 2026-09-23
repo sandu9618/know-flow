@@ -6,6 +6,38 @@ export async function listDocuments(): Promise<KnowledgeSourceListItem[]> {
   return response.data;
 }
 
+export async function reingestDocument(id: string): Promise<KnowledgeSourceListItem> {
+  const response = await fetchJson<{ data: KnowledgeSourceListItem }>(
+    `/api/documents/${encodeURIComponent(id)}/ingest`,
+    { method: 'POST' },
+  );
+  return response.data;
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  const baseUrl = getApiBaseUrl();
+  const url = `${baseUrl}/api/documents/${encodeURIComponent(id)}`;
+
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: { Accept: 'application/json' },
+  });
+
+  if (response.ok) {
+    return;
+  }
+
+  const body = (await response.json()) as {
+    error?: { code?: string; message?: string };
+  };
+
+  throw new ApiError(
+    body.error?.message ?? `Request failed with status ${response.status}`,
+    response.status,
+    body.error?.code,
+  );
+}
+
 export function uploadDocument(
   file: File,
   options?: {

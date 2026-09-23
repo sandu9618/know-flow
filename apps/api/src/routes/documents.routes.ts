@@ -4,6 +4,7 @@ import { asyncHandler } from '../middleware/asyncHandler.js';
 import { handleUploadError, uploadMiddleware } from '../middleware/upload.js';
 import { validate } from '../middleware/validate.js';
 import {
+  documentIdSchema,
   listDocumentsSchema,
   uploadDocumentSchema,
 } from '../schemas/documents.schema.js';
@@ -29,4 +30,16 @@ documentsRouter.post(
   },
   validate(uploadDocumentSchema),
   asyncHandler(documentsController.uploadDocument),
+);
+
+documentsRouter.post(
+  '/:id/ingest',
+  validate(documentIdSchema),
+  asyncHandler(documentsController.reingestDocument),
+);
+
+documentsRouter.delete(
+  '/:id',
+  validate(documentIdSchema),
+  asyncHandler(documentsController.deleteDocument),
 );

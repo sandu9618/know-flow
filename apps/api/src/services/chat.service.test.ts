@@ -292,6 +292,33 @@ describe('chatService.askAboutSource', () => {
       code: 'SOURCE_NOT_READY',
       statusCode: 409,
     } satisfies Partial<AppError>);
+
+    expect(retrieveTopChunksMock).not.toHaveBeenCalled();
+  });
+
+  it('throws 409 when the source failed to index and does not retrieve chunks', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue({
+      ...indexedSource,
+      status: 'failed',
+      errorMessage:
+        'Could not read this file. Retry indexing, or upload a corrected PDF or TXT file.',
+      chunkCount: null,
+      indexedAt: null,
+    });
+
+    await expect(
+      chatService.askAboutSource({
+        scope: 'source',
+        sourceId: indexedSource.id,
+        question: 'Hello?',
+      }),
+    ).rejects.toMatchObject({
+      code: 'SOURCE_NOT_READY',
+      statusCode: 409,
+      message: 'This document failed to index and cannot be used in chat.',
+    } satisfies Partial<AppError>);
+
+    expect(retrieveTopChunksMock).not.toHaveBeenCalled();
   });
 });
 

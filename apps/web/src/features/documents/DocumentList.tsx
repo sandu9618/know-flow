@@ -1,5 +1,6 @@
 import { ApiError } from '@/lib/api';
 import { useDocuments } from '@/features/documents/useDocuments';
+import { useFailedSourceActions } from '@/features/documents/useFailedSourceActions';
 import { getSourceMetaFields } from '@/features/documents/sourceMeta';
 import type { KnowledgeSourceStatus } from '@/types/knowledge-source.types';
 import styles from '@/features/documents/DocumentsPage.module.css';
@@ -34,6 +35,7 @@ function formatSourceType(sourceType: string): string {
 
 export default function DocumentList() {
   const { data: documents = [], isLoading, error } = useDocuments();
+  const { retryIndexing, removeSource, isBusy, actionError } = useFailedSourceActions();
 
   return (
     <section className={styles.listSection} aria-labelledby="document-list-heading">
@@ -71,13 +73,20 @@ export default function DocumentList() {
               formatSourceType,
             });
 
+            const failedActionError =
+              document.status === 'failed' ? actionError(document.id) : null;
+
             return (
               <li key={document.id} className={styles.sourceItem}>
                 <div className={styles.sourceHeader}>
                   <p className={styles.sourceTitle}>{document.title}</p>
                   <span
                     className={`${styles.statusBadge} ${styles[`status_${document.status}`]}`}
-                    aria-live={document.status === 'indexing' ? 'polite' : undefined}
+                    aria-live={
+                      document.status === 'indexing' || document.status === 'failed'
+                        ? 'polite'
+                        : undefined
+                    }
                   >
                     {document.status === 'indexing' && (
                       <span className={styles.statusSpinner} aria-hidden="true" />
@@ -93,6 +102,37 @@ export default function DocumentList() {
                     </div>
                   ))}
                 </dl>
+                {document.status === 'failed' && (
+                  <div className={styles.failedPanel}>
+                    <p className={styles.error} role="alert">
+                      {document.errorMessage ??
+                        'Indexing failed. Retry indexing, or upload a corrected PDF or TXT file.'}
+                    </p>
+                    <div className={styles.failedActions}>
+                      <button
+                        type="button"
+                        className={styles.retryButton}
+                        onClick={() => retryIndexing(document.id)}
+                        disabled={isBusy(document.id)}
+                      >
+                        Retry indexing
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.removeButton}
+                        onClick={() => removeSource(document.id)}
+                        disabled={isBusy(document.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    {failedActionError && (
+                      <p className={styles.actionError} role="alert">
+                        {failedActionError}
+                      </p>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}
