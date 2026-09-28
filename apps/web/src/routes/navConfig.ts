@@ -38,7 +38,7 @@ export const navItems: NavItem[] = [
     week: 4,
     weekLabel: 'Week 4',
     description: 'Semantic search across indexed documents with ranked snippets.',
-    implemented: false,
+    implemented: true,
   },
   {
     label: 'Agents',

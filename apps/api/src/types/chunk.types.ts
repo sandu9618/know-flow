@@ -17,3 +17,11 @@ export type ChunkEmbeddingUpdate = {
   index: number;
   embedding: number[];
 };
+
+export type VectorSearchHit = {
+  id: string;
+  sourceId: string;
+  index: number;
+  text: string;
+  score: number;
+};

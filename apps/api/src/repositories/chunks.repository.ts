@@ -1,6 +1,13 @@
 import { ObjectId, type WithId } from 'mongodb';
 import { getDb } from '../clients/mongodb.client.js';
-import type { Chunk, ChunkEmbeddingUpdate, ChunkInput } from '../types/chunk.types.js';
+import { EMBEDDING_DIMENSIONS } from '../constants/ingestion.constants.js';
+import { CHUNKS_VECTOR_INDEX } from '../constants/search.constants.js';
+import type {
+  Chunk,
+  ChunkEmbeddingUpdate,
+  ChunkInput,
+  VectorSearchHit,
+} from '../types/chunk.types.js';
 
 const COLLECTION = 'chunks';
 
@@ -143,8 +150,100 @@ export const chunksRepository = {
     return docs.map(toDomain);
   },
 
+  async vectorSearch(input: {
+    vector: number[];
+    sourceIds: string[];
+    limit: number;
+  }): Promise<VectorSearchHit[]> {
+    const objectIds = input.sourceIds
+      .filter((sourceId) => ObjectId.isValid(sourceId))
+      .map((sourceId) => new ObjectId(sourceId));
+
+    if (objectIds.length === 0 || input.limit < 1) {
+      return [];
+    }
+
+    const limit = input.limit;
+    const docs = await getDb()
+      .collection<ChunkDoc>(COLLECTION)
+      .aggregate<VectorSearchAggregateDoc>([
+        {
+          $vectorSearch: {
+            index: CHUNKS_VECTOR_INDEX,
+            path: 'embedding',
+            queryVector: input.vector,
+            numCandidates: Math.min(limit * 10, 200),
+            limit,
+            filter: { sourceId: { $in: objectIds } },
+          },
+        },
+        {
+          $project: {
+            text: 1,
+            sourceId: 1,
+            index: 1,
+            score: { $meta: 'vectorSearchScore' },
+          },
+        },
+      ])
+      .toArray();
+
+    return docs.map((doc) => ({
+      id: doc._id.toHexString(),
+      sourceId: doc.sourceId.toHexString(),
+      index: doc.index,
+      text: doc.text,
+      score: doc.score,
+    }));
+  },
+
   async ensureIndexes(): Promise<void> {
     const collection = getDb().collection<ChunkDoc>(COLLECTION);
     await collection.createIndex({ sourceId: 1, index: 1 }, { unique: true });
   },
+
+  async ensureVectorSearchIndex(): Promise<void> {
+    const collection = getDb().collection<ChunkDoc>(COLLECTION);
+
+    try {
+      const indexes = await collection.listSearchIndexes().toArray();
+      const exists = indexes.some((index) => index.name === CHUNKS_VECTOR_INDEX);
+      if (exists) {
+        return;
+      }
+
+      await collection.createSearchIndex({
+        name: CHUNKS_VECTOR_INDEX,
+        type: 'vectorSearch',
+        definition: {
+          fields: [
+            {
+              type: 'vector',
+              path: 'embedding',
+              numDimensions: EMBEDDING_DIMENSIONS,
+              similarity: 'cosine',
+            },
+            {
+              type: 'filter',
+              path: 'sourceId',
+            },
+          ],
+        },
+      });
+      console.log(`Created vector search index ${CHUNKS_VECTOR_INDEX}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `Vector search index ${CHUNKS_VECTOR_INDEX} was not created: ${message}. Semantic search requires MongoDB Atlas or mongodb/mongodb-atlas-local.`,
+      );
+    }
+  },
+};
+
+type VectorSearchAggregateDoc = {
+  _id: ObjectId;
+  text: string;
+  sourceId: ObjectId;
+  index: number;
+  score: number;
 };

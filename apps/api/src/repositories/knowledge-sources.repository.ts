@@ -75,6 +75,15 @@ export const knowledgeSourcesRepository = {
     return doc ? toDomain(doc) : null;
   },
 
+  async findIdsByStatus(status: KnowledgeSourceStatus): Promise<string[]> {
+    const docs = await getDb()
+      .collection<KnowledgeSourceDoc>(COLLECTION)
+      .find({ status }, { projection: { _id: 1 } })
+      .toArray();
+
+    return docs.map((doc) => doc._id.toHexString());
+  },
+
   async findByIds(ids: string[]): Promise<KnowledgeSource[]> {
     const objectIds = ids
       .filter((id) => ObjectId.isValid(id))

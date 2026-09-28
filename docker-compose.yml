@@ -1,16 +1,18 @@
 services:
   mongodb:
-    image: mongo:7
+    image: mongodb/mongodb-atlas-local
+    hostname: mongodb
     ports:
       - "27017:27017"
     volumes:
-      - mongodb_data:/data/db
+      - mongodb_atlas_data:/data/db
+      - mongodb_atlas_config:/data/configdb
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 10s
+      timeout: 10s
+      retries: 8
+      start_period: 40s
 
   redis:
     image: redis:7-alpine
@@ -52,5 +54,6 @@ services:
       "
 
 volumes:
-  mongodb_data:
+  mongodb_atlas_data:
+  mongodb_atlas_config:
   minio_data:

@@ -108,6 +108,6 @@ If the API exits on startup with a MongoDB connection error:
 
 1. Confirm MongoDB is running: `docker compose ps` (container should be `healthy`)
 2. Start MongoDB if needed: `npm run docker:up`
-3. Confirm `MONGODB_URI` in `.env` matches your setup (default: `mongodb://localhost:27017/knowflow`)
+3. Confirm `MONGODB_URI` in `.env` matches your setup (default: `mongodb://localhost:27017/knowflow?directConnection=true`)
 
 If MongoDB stops while the API is running, `GET /health` returns **503** with `{ "data": { "status": "degraded", "db": "disconnected" } }`.

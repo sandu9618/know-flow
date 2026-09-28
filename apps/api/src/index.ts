@@ -13,6 +13,7 @@ import { conversationsRouter } from './routes/conversations.routes.js';
 import { documentsRouter } from './routes/documents.routes.js';
 import { healthRouter } from './routes/health.routes.js';
 import { promptTemplatesRouter } from './routes/prompt-templates.routes.js';
+import { searchRouter } from './routes/search.routes.js';
 import { startIngestionWorker, stopIngestionWorker } from './workers/ingestion.worker.js';
 
 validateStartupConfig();
@@ -26,6 +27,7 @@ app.use('/api/prompt-templates', promptTemplatesRouter);
 app.use('/api/documents', documentsRouter);
 app.use('/api/conversations', conversationsRouter);
 app.use('/api/chat', chatRouter);
+app.use('/api/search', searchRouter);
 app.use(errorHandler);
 
 async function startServer(): Promise<Server> {
@@ -35,6 +37,7 @@ async function startServer(): Promise<Server> {
     await promptTemplatesRepository.ensureIndexes();
     await knowledgeSourcesRepository.ensureIndexes();
     await chunksRepository.ensureIndexes();
+    await chunksRepository.ensureVectorSearchIndex();
     await conversationsRepository.ensureIndexes();
     startIngestionWorker();
     console.log('Ingestion worker started');
