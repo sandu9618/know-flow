@@ -1,55 +1,20 @@
-import { RAG_STOP_WORDS, RAG_TOP_K } from '../../constants/rag.constants.js';
+import { embedTexts } from '../../clients/python-worker.client.js';
+import { EMBEDDING_DIMENSIONS } from '../../constants/ingestion.constants.js';
+import { RAG_TOP_K } from '../../constants/rag.constants.js';
+import { AppError } from '../../errors/AppError.js';
 import { chunksRepository } from '../../repositories/chunks.repository.js';
-import type { Chunk } from '../../types/chunk.types.js';
 
-export type RetrievedChunk = Chunk & {
+const EMBEDDING_UNAVAILABLE_MESSAGE = 'Embedding service is unavailable';
+const VECTOR_SEARCH_UNAVAILABLE_MESSAGE = 'Semantic search index is not available';
+
+export type RetrievedChunk = {
+  id: string;
+  sourceId: string;
+  index: number;
+  text: string;
   score: number;
   sourceTitle: string;
 };
-
-export function tokenizeQuestion(question: string): string[] {
-  const terms = question
-    .toLowerCase()
-    .split(/[^a-z0-9]+/)
-    .filter((term) => term.length >= 3 && !RAG_STOP_WORDS.has(term));
-
-  return [...new Set(terms)];
-}
-
-function scoreChunkText(text: string, terms: string[]): number {
-  if (terms.length === 0) {
-    return 0;
-  }
-
-  const lowerText = text.toLowerCase();
-  return terms.filter((term) => lowerText.includes(term)).length;
-}
-
-function sortChunks(chunks: RetrievedChunk[]): RetrievedChunk[] {
-  return [...chunks].sort((left, right) => {
-    if (right.score !== left.score) {
-      return right.score - left.score;
-    }
-
-    if (left.sourceId !== right.sourceId) {
-      return left.sourceId.localeCompare(right.sourceId);
-    }
-
-    return left.index - right.index;
-  });
-}
-
-function buildRetrievedChunks(
-  chunks: Chunk[],
-  sourceTitles: Record<string, string>,
-  terms: string[],
-): RetrievedChunk[] {
-  return chunks.map((chunk) => ({
-    ...chunk,
-    score: scoreChunkText(chunk.text, terms),
-    sourceTitle: sourceTitles[chunk.sourceId] ?? 'Unknown source',
-  }));
-}
 
 export async function retrieveTopChunks(input: {
   question: string;
@@ -58,30 +23,51 @@ export async function retrieveTopChunks(input: {
   limit?: number;
 }): Promise<RetrievedChunk[]> {
   const limit = input.limit ?? RAG_TOP_K;
-  const questionTerms = tokenizeQuestion(input.question);
-  const chunks = await chunksRepository.findBySourceIds(input.sourceIds);
 
-  if (chunks.length === 0) {
+  if (input.sourceIds.length === 0) {
     return [];
   }
 
-  const scored = sortChunks(buildRetrievedChunks(chunks, input.sourceTitles, questionTerms));
-  const matched = scored.filter((chunk) => chunk.score > 0).slice(0, limit);
-
-  let results: RetrievedChunk[];
-  let retrievalFallback = false;
-
-  if (matched.length > 0) {
-    results = matched;
-  } else {
-    retrievalFallback = true;
-    results = scored.slice(0, limit);
+  let queryVector: number[];
+  try {
+    const vectors = await embedTexts([input.question]);
+    const vector = vectors[0];
+    if (!vector || vector.length !== EMBEDDING_DIMENSIONS) {
+      throw new Error(EMBEDDING_UNAVAILABLE_MESSAGE);
+    }
+    queryVector = vector;
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError('EMBEDDING_UNAVAILABLE', EMBEDDING_UNAVAILABLE_MESSAGE, 503);
   }
+
+  let hits;
+  try {
+    hits = await chunksRepository.vectorSearch({
+      vector: queryVector,
+      sourceIds: input.sourceIds,
+      limit,
+    });
+  } catch (error: unknown) {
+    if (error instanceof AppError) {
+      throw error;
+    }
+    throw new AppError('VECTOR_SEARCH_UNAVAILABLE', VECTOR_SEARCH_UNAVAILABLE_MESSAGE, 503);
+  }
+
+  const results: RetrievedChunk[] = hits.map((hit) => ({
+    id: hit.id,
+    sourceId: hit.sourceId,
+    index: hit.index,
+    text: hit.text,
+    score: hit.score,
+    sourceTitle: input.sourceTitles[hit.sourceId] ?? 'Unknown source',
+  }));
 
   console.info('[rag] retrieval', {
     sourceIds: input.sourceIds,
-    questionTerms,
-    retrievalFallback,
     retrieved: results.map((chunk) => ({
       chunkId: chunk.id,
       sourceId: chunk.sourceId,
