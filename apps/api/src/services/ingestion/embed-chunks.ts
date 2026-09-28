@@ -23,6 +23,8 @@ export async function embedChunksInBatches(
       return { index: chunk.index, embedding };
     });
 
+    console.info('[ingestion] embed batch', { size: batch.length });
+
     await onBatch(updates);
   }
 }

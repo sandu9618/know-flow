@@ -17,6 +17,7 @@ vi.mock('../clients/python-worker.client.js', () => ({
 vi.mock('../repositories/chunks.repository.js', () => ({
   chunksRepository: {
     vectorSearch: vi.fn(),
+    findBySourceIds: vi.fn(),
   },
 }));
 
@@ -59,6 +60,7 @@ describe('searchLibrary', () => {
   beforeEach(() => {
     vi.mocked(embedTexts).mockReset();
     vi.mocked(chunksRepository.vectorSearch).mockReset();
+    vi.mocked(chunksRepository.findBySourceIds).mockReset();
     vi.mocked(knowledgeSourcesRepository.findIdsByStatus).mockReset();
     vi.mocked(knowledgeSourcesRepository.findByIds).mockReset();
   });
@@ -92,12 +94,15 @@ describe('searchLibrary', () => {
 
     const results = await searchLibrary({ query: 'employee vacation rules' });
 
+    expect(embedTexts).toHaveBeenCalledTimes(1);
     expect(embedTexts).toHaveBeenCalledWith(['employee vacation rules']);
+    expect(chunksRepository.vectorSearch).toHaveBeenCalledTimes(1);
     expect(chunksRepository.vectorSearch).toHaveBeenCalledWith({
       vector,
       sourceIds: [handbookId, specId],
       limit: SEARCH_TOP_K,
     });
+    expect(chunksRepository.findBySourceIds).not.toHaveBeenCalled();
     expect(results).toEqual([
       {
         chunkId: 'chunk-leave',

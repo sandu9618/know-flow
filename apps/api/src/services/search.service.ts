@@ -20,7 +20,9 @@ export async function searchLibrary(input: {
     return [];
   }
 
+  const startedAt = Date.now();
   let queryVector: number[];
+  const embedStartedAt = Date.now();
   try {
     const vectors = await embedTexts([input.query]);
     const vector = vectors[0];
@@ -34,8 +36,10 @@ export async function searchLibrary(input: {
     }
     throw new AppError('EMBEDDING_UNAVAILABLE', EMBEDDING_UNAVAILABLE_MESSAGE, 503);
   }
+  const embedMs = Date.now() - embedStartedAt;
 
   let hits;
+  const vectorStartedAt = Date.now();
   try {
     hits = await chunksRepository.vectorSearch({
       vector: queryVector,
@@ -48,11 +52,12 @@ export async function searchLibrary(input: {
     }
     throw new AppError('VECTOR_SEARCH_UNAVAILABLE', VECTOR_SEARCH_UNAVAILABLE_MESSAGE, 503);
   }
+  const vectorMs = Date.now() - vectorStartedAt;
 
   const sources = await knowledgeSourcesRepository.findByIds(hits.map((hit) => hit.sourceId));
   const titleBySourceId = new Map(sources.map((source) => [source.id, source.title]));
 
-  return hits.map((hit) => ({
+  const results = hits.map((hit) => ({
     chunkId: hit.id,
     sourceId: hit.sourceId,
     sourceTitle: titleBySourceId.get(hit.sourceId) ?? 'Unknown source',
@@ -60,6 +65,15 @@ export async function searchLibrary(input: {
     score: hit.score,
     index: hit.index,
   }));
+
+  console.info('[search] query', {
+    totalMs: Date.now() - startedAt,
+    embedMs,
+    vectorMs,
+    hits: hits.length,
+  });
+
+  return results;
 }
 
 function toSnippet(text: string): string {
