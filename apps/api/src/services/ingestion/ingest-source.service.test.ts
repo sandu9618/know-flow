@@ -1,10 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { embedTexts } from '../../clients/python-worker.client.js';
+import { EMBEDDING_DIMENSIONS } from '../../constants/ingestion.constants.js';
 import { chunksRepository } from '../../repositories/chunks.repository.js';
 import { knowledgeSourcesRepository } from '../../repositories/knowledge-sources.repository.js';
 import type { KnowledgeSource } from '../../types/knowledge-source.types.js';
 import { getContentAdapter } from '../acquisition/adapters.js';
 import { ingestSource } from './ingest-source.service.js';
+
+vi.mock('../../clients/python-worker.client.js', () => ({
+  embedTexts: vi.fn(),
+}));
 
 vi.mock('../acquisition/adapters.js', () => ({
   getContentAdapter: vi.fn(),
@@ -13,6 +19,7 @@ vi.mock('../acquisition/adapters.js', () => ({
 vi.mock('../../repositories/chunks.repository.js', () => ({
   chunksRepository: {
     replaceForSource: vi.fn(),
+    setEmbeddings: vi.fn(),
     deleteBySourceId: vi.fn(),
   },
 }));
@@ -52,7 +59,13 @@ describe('ingestSource', () => {
     vi.mocked(knowledgeSourcesRepository.updateStatus).mockReset();
     vi.mocked(knowledgeSourcesRepository.markIndexed).mockReset();
     vi.mocked(chunksRepository.replaceForSource).mockReset();
+    vi.mocked(chunksRepository.setEmbeddings).mockReset();
+    vi.mocked(chunksRepository.setEmbeddings).mockResolvedValue(undefined);
     vi.mocked(chunksRepository.deleteBySourceId).mockReset();
+    vi.mocked(embedTexts).mockReset();
+    vi.mocked(embedTexts).mockImplementation(async (texts: string[]) =>
+      texts.map(() => Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.01)),
+    );
     vi.mocked(getContentAdapter).mockReset();
     resolveText.mockReset();
     vi.mocked(getContentAdapter).mockReturnValue({
@@ -63,11 +76,21 @@ describe('ingestSource', () => {
     });
   });
 
-  it('marks source indexing, stores chunks, and marks indexed with chunkCount only', async () => {
+  it('marks source indexing, stores chunks with embeddings, then marks indexed', async () => {
     const extractedText = 'Refund policy summary for EU customers.';
+    const steps: string[] = [];
     vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(sampleSource);
     resolveText.mockResolvedValue(extractedText);
-    vi.mocked(chunksRepository.replaceForSource).mockResolvedValue(1);
+    vi.mocked(chunksRepository.replaceForSource).mockImplementation(async () => {
+      steps.push('chunks');
+      return 1;
+    });
+    vi.mocked(chunksRepository.setEmbeddings).mockImplementation(async () => {
+      steps.push('embeddings');
+    });
+    vi.mocked(knowledgeSourcesRepository.markIndexed).mockImplementation(async () => {
+      steps.push('indexed');
+    });
 
     await ingestSource(sampleSource.id);
 
@@ -86,6 +109,14 @@ describe('ingestSource', () => {
         }),
       ]),
     );
+    expect(embedTexts).toHaveBeenCalledWith([extractedText]);
+    expect(chunksRepository.setEmbeddings).toHaveBeenCalledWith(sampleSource.id, [
+      {
+        index: 0,
+        embedding: Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.01),
+      },
+    ]);
+    expect(steps).toEqual(['chunks', 'embeddings', 'indexed']);
     expect(knowledgeSourcesRepository.markIndexed).toHaveBeenCalledWith(sampleSource.id, {
       chunkCount: 1,
     });
@@ -111,6 +142,7 @@ describe('ingestSource', () => {
     );
     expect(chunksRepository.deleteBySourceId).toHaveBeenCalledWith(sampleSource.id);
     expect(chunksRepository.replaceForSource).not.toHaveBeenCalled();
+    expect(embedTexts).not.toHaveBeenCalled();
     expect(knowledgeSourcesRepository.markIndexed).not.toHaveBeenCalled();
   });
 
@@ -171,6 +203,45 @@ describe('ingestSource', () => {
     expect(chunksRepository.deleteBySourceId).toHaveBeenCalledWith(sampleSource.id);
   });
 
+  it('does not mark indexed when embedding fails before the final attempt', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(sampleSource);
+    resolveText.mockResolvedValue('Refund policy summary for EU customers.');
+    vi.mocked(chunksRepository.replaceForSource).mockResolvedValue(1);
+    vi.mocked(embedTexts).mockRejectedValue(new Error('Embedding service is unavailable'));
+
+    await expect(
+      ingestSource(sampleSource.id, { isFinalAttempt: false }),
+    ).rejects.toThrow('Embedding service is unavailable');
+
+    expect(chunksRepository.replaceForSource).toHaveBeenCalled();
+    expect(knowledgeSourcesRepository.markIndexed).not.toHaveBeenCalled();
+    expect(chunksRepository.deleteBySourceId).not.toHaveBeenCalled();
+    expect(knowledgeSourcesRepository.updateStatus).not.toHaveBeenCalledWith(
+      sampleSource.id,
+      'failed',
+      expect.anything(),
+    );
+  });
+
+  it('deletes chunks when embedding fails on the final attempt', async () => {
+    vi.mocked(knowledgeSourcesRepository.findById).mockResolvedValue(sampleSource);
+    resolveText.mockResolvedValue('Refund policy summary for EU customers.');
+    vi.mocked(chunksRepository.replaceForSource).mockResolvedValue(1);
+    vi.mocked(embedTexts).mockRejectedValue(new Error('Embedding service is unavailable'));
+
+    await expect(ingestSource(sampleSource.id, { isFinalAttempt: true })).rejects.toThrow(
+      'Embedding service is unavailable',
+    );
+
+    expect(knowledgeSourcesRepository.markIndexed).not.toHaveBeenCalled();
+    expect(knowledgeSourcesRepository.updateStatus).toHaveBeenCalledWith(
+      sampleSource.id,
+      'failed',
+      'Could not read this file. Retry indexing, or upload a corrected PDF or TXT file.',
+    );
+    expect(chunksRepository.deleteBySourceId).toHaveBeenCalledWith(sampleSource.id);
+  });
+
   it('persists chunks for one source before processing the next', async () => {
     const sourceA = { ...sampleSource, id: 'aaaaaaaaaaaaaaaaaaaaaaaa' };
     const sourceB = { ...sampleSource, id: 'bbbbbbbbbbbbbbbbbbbbbbbb' };
@@ -193,6 +264,10 @@ describe('ingestSource', () => {
       order.push(`persist:${sourceId}`);
       return 1;
     });
+    vi.mocked(embedTexts).mockImplementation(async (texts: string[]) => {
+      order.push('embed');
+      return texts.map(() => Array.from({ length: EMBEDDING_DIMENSIONS }, () => 0.01));
+    });
 
     await ingestSource(sourceA.id);
     await ingestSource(sourceB.id);
@@ -201,10 +276,13 @@ describe('ingestSource', () => {
     expect(order).toEqual([
       `resolve:${sourceA.id}`,
       `persist:${sourceA.id}`,
+      'embed',
       `resolve:${sourceB.id}`,
       `persist:${sourceB.id}`,
+      'embed',
       `resolve:${sourceC.id}`,
       `persist:${sourceC.id}`,
+      'embed',
     ]);
     expect(knowledgeSourcesRepository.markIndexed).toHaveBeenNthCalledWith(1, sourceA.id, {
       chunkCount: 1,

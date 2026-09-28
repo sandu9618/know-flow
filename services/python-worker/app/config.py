@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     mongodb_uri: str = "mongodb://localhost:27017/knowflow"
     llm_provider: str = "gemini"
     llm_api_key: str = ""
+    llm_embedding_model: str = "gemini-embedding-2"
+    embedding_dimensions: int = 768
 
 
 settings = Settings()

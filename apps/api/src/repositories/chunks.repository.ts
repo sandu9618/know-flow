@@ -1,14 +1,25 @@
 import { ObjectId, type WithId } from 'mongodb';
 import { getDb } from '../clients/mongodb.client.js';
-import type { Chunk, ChunkInput } from '../types/chunk.types.js';
+import type { Chunk, ChunkEmbeddingUpdate, ChunkInput } from '../types/chunk.types.js';
 
 const COLLECTION = 'chunks';
+
+const chunkReadOptions = {
+  projection: {
+    sourceId: 1,
+    index: 1,
+    text: 1,
+    tokenCount: 1,
+    createdAt: 1,
+  },
+} as const;
 
 type ChunkDoc = {
   sourceId: ObjectId;
   index: number;
   text: string;
   tokenCount: number;
+  embedding?: number[];
   createdAt: Date;
 };
 
@@ -52,6 +63,27 @@ export const chunksRepository = {
     return chunks.length;
   },
 
+  async setEmbeddings(sourceId: string, updates: ChunkEmbeddingUpdate[]): Promise<void> {
+    if (!ObjectId.isValid(sourceId) || updates.length === 0) {
+      return;
+    }
+
+    const sourceObjectId = new ObjectId(sourceId);
+    const collection = getDb().collection<ChunkDoc>(COLLECTION);
+    const result = await collection.bulkWrite(
+      updates.map((update) => ({
+        updateOne: {
+          filter: { sourceId: sourceObjectId, index: update.index },
+          update: { $set: { embedding: update.embedding } },
+        },
+      })),
+    );
+
+    if (result.matchedCount !== updates.length) {
+      throw new Error('Could not store embeddings for every chunk');
+    }
+  },
+
   async deleteBySourceId(sourceId: string): Promise<void> {
     if (!ObjectId.isValid(sourceId)) {
       return;
@@ -87,7 +119,7 @@ export const chunksRepository = {
 
     const docs = await getDb()
       .collection<ChunkDoc>(COLLECTION)
-      .find({ sourceId: { $in: objectIds } })
+      .find({ sourceId: { $in: objectIds } }, chunkReadOptions)
       .sort({ sourceId: 1, index: 1 })
       .toArray();
 
@@ -105,7 +137,7 @@ export const chunksRepository = {
 
     const docs = await getDb()
       .collection<ChunkDoc>(COLLECTION)
-      .find({ _id: { $in: objectIds } })
+      .find({ _id: { $in: objectIds } }, chunkReadOptions)
       .toArray();
 
     return docs.map(toDomain);

@@ -33,7 +33,7 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 export async function embed(text: string): Promise<number[]> {
   return withRetry(async () => {
-    const model = genAI.getGenerativeModel({ model: 'text-embedding-004' });
+    const model = genAI.getGenerativeModel({ model: 'gemini-embedding-2' });
     const result = await model.embedContent(text);
     return result.embedding.values;
   }, { attempts: 3 });

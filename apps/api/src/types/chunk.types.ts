@@ -12,3 +12,8 @@ export type ChunkInput = {
   text: string;
   tokenCount: number;
 };
+
+export type ChunkEmbeddingUpdate = {
+  index: number;
+  embedding: number[];
+};

@@ -2,6 +2,7 @@ import { chunksRepository } from '../../repositories/chunks.repository.js';
 import { knowledgeSourcesRepository } from '../../repositories/knowledge-sources.repository.js';
 import { getContentAdapter } from '../acquisition/adapters.js';
 import { chunkText } from './chunk-text.js';
+import { embedChunksInBatches } from './embed-chunks.js';
 
 const KNOWN_INGEST_ERROR_MESSAGES = new Set([
   'TXT file is empty',
@@ -52,6 +53,9 @@ export async function ingestSource(
     }
 
     await chunksRepository.replaceForSource(sourceId, chunks);
+    await embedChunksInBatches(chunks, async (updates) => {
+      await chunksRepository.setEmbeddings(sourceId, updates);
+    });
     await knowledgeSourcesRepository.markIndexed(sourceId, {
       chunkCount: chunks.length,
     });
